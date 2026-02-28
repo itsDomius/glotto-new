@@ -1,0 +1,98 @@
+'use client'
+
+import { useState } from 'react'
+
+const mockVocabulary = [
+  { word: 'Hola', translation: 'Hello', strength: 95, daysAgo: 0 },
+  { word: 'Gracias', translation: 'Thank you', strength: 88, daysAgo: 1 },
+  { word: 'Por favor', translation: 'Please', strength: 72, daysAgo: 2 },
+  { word: 'Buenos días', translation: 'Good morning', strength: 61, daysAgo: 3 },
+  { word: 'Lo siento', translation: 'I am sorry', strength: 45, daysAgo: 4 },
+  { word: 'No entiendo', translation: 'I don\'t understand', strength: 38, daysAgo: 5 },
+  { word: 'Quiero', translation: 'I want', strength: 22, daysAgo: 6 },
+  { word: 'Dónde está', translation: 'Where is', strength: 15, daysAgo: 7 },
+  { word: 'Cuánto cuesta', translation: 'How much', strength: 8, daysAgo: 8 },
+]
+
+function getStrengthColor(strength: number) {
+  if (strength >= 70) return { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-400', label: 'Strong' }
+  if (strength >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400', label: 'Fading' }
+  return { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-400', label: 'Forgotten' }
+}
+
+export default function ForgettingCurve() {
+  const [filter, setFilter] = useState<'all' | 'review'>('all')
+
+  const strong = mockVocabulary.filter(w => w.strength >= 70).length
+  const fading = mockVocabulary.filter(w => w.strength >= 40 && w.strength < 70).length
+  const forgotten = mockVocabulary.filter(w => w.strength < 40).length
+
+  const displayed = filter === 'review'
+    ? mockVocabulary.filter(w => w.strength < 70)
+    : mockVocabulary
+
+  return (
+    <div className="bg-white rounded-3xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-[#111111] font-bold">Forgetting Curve</h3>
+          <p className="text-gray-400 text-xs mt-0.5">Words fading from memory need review</p>
+        </div>
+        <button
+          onClick={() => setFilter(filter === 'all' ? 'review' : 'all')}
+          className="text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+        >
+          {filter === 'all' ? 'Show review only' : 'Show all'}
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="bg-green-50 rounded-2xl p-3 text-center">
+          <p className="text-green-700 font-bold text-xl">{strong}</p>
+          <p className="text-green-600 text-xs">Strong</p>
+        </div>
+        <div className="bg-yellow-50 rounded-2xl p-3 text-center">
+          <p className="text-yellow-700 font-bold text-xl">{fading}</p>
+          <p className="text-yellow-600 text-xs">Fading</p>
+        </div>
+        <div className="bg-red-50 rounded-2xl p-3 text-center">
+          <p className="text-red-700 font-bold text-xl">{forgotten}</p>
+          <p className="text-red-600 text-xs">Need review</p>
+        </div>
+      </div>
+
+      {/* Word List */}
+      <div className="flex flex-col gap-2">
+        {displayed.map((item) => {
+          const colors = getStrengthColor(item.strength)
+          return (
+            <div
+              key={item.word}
+              className={`flex items-center gap-3 p-3 rounded-2xl ${colors.bg}`}
+            >
+              <div className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
+              <div className="flex-1">
+                <span className={`font-semibold text-sm ${colors.text}`}>{item.word}</span>
+                <span className="text-gray-400 text-xs ml-2">{item.translation}</span>
+              </div>
+              <div className="text-right">
+                <p className={`text-xs font-medium ${colors.text}`}>{item.strength}%</p>
+                <p className="text-gray-400 text-xs">{colors.label}</p>
+              </div>
+              <button className={`text-xs px-2 py-1 rounded-lg font-medium ${colors.text} bg-white bg-opacity-70 hover:bg-opacity-100 transition-all`}>
+                Review
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {mockVocabulary.length === 0 && (
+        <p className="text-gray-400 text-sm text-center py-6">
+          Complete your first lesson to start tracking vocabulary
+        </p>
+      )}
+    </div>
+  )
+}
