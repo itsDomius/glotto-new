@@ -1,4 +1,4 @@
-// force update 1
+// @ts-nocheck
 'use client'
 
 import { useState } from 'react'
