@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+const GREEN = '#4ade80'
+const GREEN_DIM = '#0f2a1a'
+const GREEN_BORDER = '#1a3a1f'
+
 const GOALS = [
   { value: '3', label: '3 sessions per week', description: 'Casual — perfect for busy schedules', emoji: '🌱' },
   { value: '5', label: '5 sessions per week', description: 'Recommended — steady progress', emoji: '🔥' },
@@ -46,121 +50,144 @@ export default function CommitmentPage() {
 
     setLoading(false)
     setSaved(true)
-
     setTimeout(() => router.push('/dashboard'), 2000)
   }
 
   if (saved) {
     return (
-      <main className="min-h-screen bg-[#f5f4f0] flex items-center justify-center px-6">
-        <div className="text-center">
-          <p className="text-6xl mb-6">🏆</p>
-          <h1 className="text-3xl font-bold text-[#111111] mb-3">Commitment made.</h1>
-          <p className="text-gray-500">We'll hold you to it. Redirecting to your dashboard...</p>
+      <div style={{
+        minHeight: '100vh', background: '#0a0a0a',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '64px', marginBottom: '24px' }}>🏆</p>
+          <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', margin: '0 0 12px' }}>Commitment made.</h1>
+          <p style={{ color: '#555', fontSize: '15px', margin: 0 }}>We'll hold you to it. Redirecting to your dashboard...</p>
         </div>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f4f0] flex flex-col">
+    <div style={{
+      minHeight: '100vh', background: '#0a0a0a',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      display: 'flex', flexDirection: 'column',
+    }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Glotto" className="w-7 h-7 object-contain" />
-          <span className="font-bold text-[#111111] text-lg">Glotto</span>
-        </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '20px 40px', borderBottom: '1px solid #111',
+      }}>
+        <span style={{ color: GREEN, fontWeight: '800', fontSize: '20px' }}>Glotto</span>
         <button
           onClick={() => router.push('/dashboard')}
-          className="text-gray-400 text-sm hover:text-gray-600 transition-colors"
+          style={{ background: 'none', border: 'none', color: '#444', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}
         >
           ← Back to dashboard
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
-        <div className="w-full max-w-xl">
+      {/* Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+        <div style={{ width: '100%', maxWidth: '520px' }}>
 
           {/* Title */}
-          <div className="text-center mb-10">
-            <p className="text-5xl mb-4">🤝</p>
-            <h1 className="text-3xl font-bold text-[#111111] mb-3">Make your commitment</h1>
-            <p className="text-gray-500 leading-relaxed">
-              Users who set a commitment are <span className="font-semibold text-[#111111]">40% more likely</span> to reach their goal. What will you commit to this month?
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <p style={{ fontSize: '52px', marginBottom: '16px' }}>🤝</p>
+            <h1 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', margin: '0 0 12px' }}>Make your commitment</h1>
+            <p style={{ color: '#555', fontSize: '15px', lineHeight: 1.6, margin: 0 }}>
+              Users who set a commitment are{' '}
+              <span style={{ color: '#fff', fontWeight: '700' }}>40% more likely</span>{' '}
+              to reach their goal. What will you commit to this month?
             </p>
           </div>
 
-          {/* Goal Selection */}
-          <div className="mb-8">
-            <h2 className="text-[#111111] font-bold mb-4">How many sessions per week?</h2>
-            <div className="flex flex-col gap-3">
-              {GOALS.map((goal) => (
-                <button
-                  key={goal.value}
-                  onClick={() => setSelectedGoal(goal.value)}
-                  className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
-                    selectedGoal === goal.value
-                      ? 'border-[#111111] bg-[#111111] text-white'
-                      : 'border-gray-200 bg-white text-[#111111] hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-2xl">{goal.emoji}</span>
-                  <div className="flex-1">
-                    <p className="font-semibold">{goal.label}</p>
-                    <p className={`text-sm mt-0.5 ${selectedGoal === goal.value ? 'text-gray-300' : 'text-gray-500'}`}>
-                      {goal.description}
-                    </p>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    selectedGoal === goal.value ? 'border-white bg-white' : 'border-gray-300'
-                  }`}>
-                    {selectedGoal === goal.value && <div className="w-2.5 h-2.5 rounded-full bg-[#111111]" />}
-                  </div>
-                </button>
-              ))}
+          {/* Goal selection */}
+          <div style={{ marginBottom: '28px' }}>
+            <h2 style={{ color: '#888', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+              How many sessions per week?
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {GOALS.map(goal => {
+                const selected = selectedGoal === goal.value
+                return (
+                  <button key={goal.value} onClick={() => setSelectedGoal(goal.value)} style={{
+                    display: 'flex', alignItems: 'center', gap: '16px',
+                    padding: '18px 20px', borderRadius: '14px',
+                    background: selected ? GREEN_DIM : '#0e0e0e',
+                    border: `1px solid ${selected ? GREEN_BORDER : '#1a1a1a'}`,
+                    cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.15s',
+                  }}>
+                    <span style={{ fontSize: '24px', flexShrink: 0 }}>{goal.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: selected ? GREEN : '#fff', fontWeight: '700', fontSize: '15px', margin: '0 0 2px' }}>{goal.label}</p>
+                      <p style={{ color: selected ? '#4ade8088' : '#444', fontSize: '13px', margin: 0 }}>{goal.description}</p>
+                    </div>
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${selected ? GREEN : '#2a2a2a'}`,
+                      background: selected ? GREEN : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {selected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#050f06' }} />}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          {/* Stake Selection */}
-          <div className="mb-8">
-            <h2 className="text-[#111111] font-bold mb-4">What's your stake if you miss?</h2>
-            <div className="flex flex-col gap-3">
-              {STAKES.map((stake) => (
-                <button
-                  key={stake.value}
-                  onClick={() => setSelectedStake(stake.value)}
-                  className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
-                    selectedStake === stake.value
-                      ? 'border-[#111111] bg-[#111111] text-white'
-                      : 'border-gray-200 bg-white text-[#111111] hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-2xl">{stake.emoji}</span>
-                  <div className="flex-1">
-                    <p className="font-semibold">{stake.label}</p>
-                    <p className={`text-sm mt-0.5 ${selectedStake === stake.value ? 'text-gray-300' : 'text-gray-500'}`}>
-                      {stake.description}
-                    </p>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    selectedStake === stake.value ? 'border-white bg-white' : 'border-gray-300'
-                  }`}>
-                    {selectedStake === stake.value && <div className="w-2.5 h-2.5 rounded-full bg-[#111111]" />}
-                  </div>
-                </button>
-              ))}
+          {/* Stake selection */}
+          <div style={{ marginBottom: '28px' }}>
+            <h2 style={{ color: '#888', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+              What's your stake if you miss?
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {STAKES.map(stake => {
+                const selected = selectedStake === stake.value
+                return (
+                  <button key={stake.value} onClick={() => setSelectedStake(stake.value)} style={{
+                    display: 'flex', alignItems: 'center', gap: '16px',
+                    padding: '18px 20px', borderRadius: '14px',
+                    background: selected ? GREEN_DIM : '#0e0e0e',
+                    border: `1px solid ${selected ? GREEN_BORDER : '#1a1a1a'}`,
+                    cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.15s',
+                  }}>
+                    <span style={{ fontSize: '24px', flexShrink: 0 }}>{stake.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: selected ? GREEN : '#fff', fontWeight: '700', fontSize: '15px', margin: '0 0 2px' }}>{stake.label}</p>
+                      <p style={{ color: selected ? '#4ade8088' : '#444', fontSize: '13px', margin: 0 }}>{stake.description}</p>
+                    </div>
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${selected ? GREEN : '#2a2a2a'}`,
+                      background: selected ? GREEN : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {selected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#050f06' }} />}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
 
-            {/* Friend email input */}
             {selectedStake === 'friend' && (
-              <div className="mt-3">
+              <div style={{ marginTop: '10px' }}>
                 <input
                   type="email"
                   placeholder="Friend's email address"
                   value={friendEmail}
-                  onChange={(e) => setFriendEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 bg-white text-[#111111] placeholder-gray-400 focus:outline-none focus:border-gray-400 transition-colors"
+                  onChange={e => setFriendEmail(e.target.value)}
+                  style={{
+                    width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a',
+                    borderRadius: '14px', padding: '14px 18px', color: '#fff',
+                    fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+                  }}
+                  onFocus={e => e.target.style.borderColor = GREEN}
+                  onBlur={e => e.target.style.borderColor = '#1a1a1a'}
                 />
               </div>
             )}
@@ -170,17 +197,27 @@ export default function CommitmentPage() {
           <button
             onClick={handleSave}
             disabled={!selectedGoal || !selectedStake || loading}
-            className="w-full py-4 rounded-2xl bg-[#111111] text-white font-bold text-base hover:bg-[#222222] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              width: '100%', padding: '18px',
+              background: selectedGoal && selectedStake ? GREEN : '#0e0e0e',
+              color: selectedGoal && selectedStake ? '#050f06' : '#2a2a2a',
+              border: `1px solid ${selectedGoal && selectedStake ? GREEN : '#1a1a1a'}`,
+              borderRadius: '14px', fontSize: '16px', fontWeight: '800',
+              cursor: !selectedGoal || !selectedStake || loading ? 'not-allowed' : 'pointer',
+              opacity: !selectedGoal || !selectedStake ? 0.4 : 1,
+              transition: 'all 0.2s', fontFamily: 'inherit',
+              boxShadow: selectedGoal && selectedStake ? '0 4px 24px rgba(74,222,128,0.2)' : 'none',
+            }}
           >
             {loading ? 'Saving your commitment...' : 'Make my commitment →'}
           </button>
 
-          <p className="text-gray-400 text-xs text-center mt-4">
+          <p style={{ color: '#2a2a2a', fontSize: '13px', textAlign: 'center', marginTop: '16px' }}>
             You can update your commitment at any time from your dashboard
           </p>
 
         </div>
       </div>
-    </main>
+    </div>
   )
 }

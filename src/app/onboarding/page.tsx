@@ -1,243 +1,258 @@
-// @ts-nocheck
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
-// Ορίζουμε έναν τύπο για τα options για να μην γκρινιάζει το TypeScript
-type Option = {
-  value: string;
-  label: string;
-  flag?: string;
-  description?: string;
-}
-
-const STEPS = [
-  {
-    id: 'language',
-    title: '΅Which language?',
-    subtitle: 'Choose your target language',
-    type: 'grid',
-    options: [
-      { value: 'english', label: 'English', flag: '🇬🇧' },
-      { value: 'spanish', label: 'Spanish', flag: '🇪🇸' },
-      { value: 'french', label: 'French', flag: '🇫🇷' },
-      { value: 'german', label: 'German', flag: '🇩🇪' },
-      { value: 'italian', label: 'Italian', flag: '🇮🇹' },
-      { value: 'portuguese', label: 'Portuguese', flag: '🇵🇹' },
-      { value: 'japanese', label: 'Japanese', flag: '🇯🇵' },
-      { value: 'mandarin', label: 'Mandarin', flag: '🇨🇳' },
-    ]
-  },
-  {
-    id: 'level',
-    title: 'What is your current level?',
-    subtitle: 'Be honest — we adapt everything to where you are right now',
-    type: 'list',
-    options: [
-      { value: 'A1', label: 'Complete Beginner', description: 'I know almost nothing' },
-      { value: 'A2', label: 'Elementary', description: 'I know basic phrases and greetings' },
-      { value: 'B1', label: 'Intermediate', description: 'I can handle simple conversations' },
-      { value: 'B2', label: 'Upper Intermediate', description: 'I can discuss most topics' },
-      { value: 'C1', label: 'Advanced', description: 'I am nearly fluent' },
-      { value: 'C2', label: 'Mastery', description: 'I want to perfect my language' },
-    ]
-  },
-  {
-    id: 'goal',
-    title: 'What is your Dream Goal?',
-    subtitle: 'Everything we build for you will be aimed at this specific outcome',
-    type: 'list',
-    options: [
-      { value: 'job', label: 'Get a job or promotion', description: 'Career advancement requiring language skills' },
-      { value: 'travel', label: 'Travel independently', description: 'Navigate a country with confidence' },
-      { value: 'netflix', label: 'Watch content without subtitles', description: 'Fully enjoy films, series, and videos' },
-      { value: 'move', label: 'Move to another country', description: 'Live and thrive in a new place' },
-      { value: 'exam', label: 'Pass a language exam', description: 'IELTS, TOEFL, DELF, or other certification' },
-      { value: 'connect', label: 'Connect with people', description: 'Make friends, date, build relationships' },
-      { value: 'business', label: 'Run my business internationally', description: 'Communicate with global clients and partners' },
-      { value: 'study', label: 'Study abroad', description: 'Attend university or courses overseas' },
-    ]
-  },
-  {
-    id: 'style',
-    title: 'How do you learn best?',
-    subtitle: 'Your lessons will be designed around your natural learning style',
-    type: 'list',
-    options: [
-      { value: 'visual', label: 'Visual Learner', description: 'I learn best by reading, seeing patterns, and using visuals' },
-      { value: 'auditory', label: 'Auditory Learner', description: 'I learn best by listening, speaking, and hearing explanations' },
-      { value: 'kinesthetic', label: 'Kinesthetic Learner', description: 'I learn best by doing, practicing, and applying immediately' },
-    ]
-  },
-  {
-    id: 'commitment',
-    title: 'Set your monthly commitment',
-    subtitle: 'Users who set a goal are 40% more likely to succeed',
-    type: 'commitment',
-    options: [
-      { value: '3', label: '3 sessions per week', description: 'Casual — great for busy schedules' },
-      { value: '5', label: '5 sessions per week', description: 'Recommended — steady progress' },
-      { value: '7', label: 'Every day', description: 'Intensive — fastest results' },
-    ]
-  }
+const LANGUAGES = [
+  { code: 'spanish', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'french', label: 'French', flag: '🇫🇷' },
+  { code: 'german', label: 'German', flag: '🇩🇪' },
+  { code: 'italian', label: 'Italian', flag: '🇮🇹' },
+  { code: 'portuguese', label: 'Portuguese', flag: '🇵🇹' },
+  { code: 'japanese', label: 'Japanese', flag: '🇯🇵' },
+  { code: 'mandarin', label: 'Mandarin', flag: '🇨🇳' },
+  { code: 'greek', label: 'Greek', flag: '🇬🇷' },
 ]
 
-export default function Onboarding() {
-  const [step, setStep] = useState(0)
-  const [selections, setSelections] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
+const LEVELS = [
+  { code: 'A1', label: 'Complete Beginner', desc: 'I know almost nothing' },
+  { code: 'A2', label: 'Elementary', desc: 'I know basic phrases and greetings' },
+  { code: 'B1', label: 'Intermediate', desc: 'I can handle simple conversations' },
+  { code: 'B2', label: 'Upper Intermediate', desc: 'I can discuss most topics' },
+  { code: 'C1', label: 'Advanced', desc: 'I am nearly fluent' },
+  { code: 'C2', label: 'Mastery', desc: 'I want to perfect my language' },
+]
+
+const GOALS = [
+  { code: 'travel', label: 'Travel independently', desc: 'Navigate a country with confidence', icon: '✈️' },
+  { code: 'job', label: 'Get a job or promotion', desc: 'Career advancement requiring language skills', icon: '💼' },
+  { code: 'netflix', label: 'Watch without subtitles', desc: 'Fully enjoy films, series, and videos', icon: '🎬' },
+  { code: 'connect', label: 'Connect with people', desc: 'Make friends, date, build relationships', icon: '❤️' },
+  { code: 'move', label: 'Move to another country', desc: 'Live and thrive in a new place', icon: '🏡' },
+  { code: 'exam', label: 'Pass a language exam', desc: 'IELTS, TOEFL, DELF, or other certification', icon: '📜' },
+  { code: 'business', label: 'Run my business globally', desc: 'Communicate with international clients', icon: '🌍' },
+  { code: 'study', label: 'Study abroad', desc: 'Attend university or courses overseas', icon: '🎓' },
+]
+
+export default function OnboardingPage() {
+  const [step, setStep] = useState(1)
+  const [language, setLanguage] = useState('')
+  const [level, setLevel] = useState('')
+  const [goal, setGoal] = useState('')
+  const [nativeLanguage, setNativeLanguage] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [saving, setSaving] = useState(false)
   const router = useRouter()
 
-  const currentStep = STEPS[step]
-  const progress = ((step) / STEPS.length) * 100
+  const totalSteps = 5
 
-  const handleSelect = (value: string) => {
-    setSelections(prev => ({ ...prev, [currentStep.id]: value }))
-  }
-
-  const handleNext = async () => {
-    if (!selections[currentStep.id]) return
-
-    if (step < STEPS.length - 1) {
-      setStep(prev => prev + 1)
-      return
-    }
-
-    setLoading(true)
-
+  const handleFinish = async () => {
+    setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+    if (!user) return
 
     await supabase.from('profiles').upsert({
-        user_id: user.id,
-        full_name: user.user_metadata?.full_name,
-        target_language: selections.language,
-        current_level: selections.level,
-        dream_goal: selections.goal,
-        learning_style: selections.style,
-        onboarding_complete: true,
-      })
-    
-    await supabase.from('streaks').upsert({
       user_id: user.id,
-      current_streak: 0,
-      longest_streak: 0,
+      full_name: fullName,
+      target_language: language,
+      current_level: level,
+      dream_goal: goal,
+      native_language: nativeLanguage,
+      onboarding_complete: true,
     })
 
-    await supabase.from('personal_bests').upsert({
-      user_id: user.id,
-      longest_session: 0,
-      most_words_produced: 0,
-      highest_accuracy: 0,
-      most_xp_single_session: 0,
-    })
-
-    setLoading(false)
     router.push('/dashboard')
   }
 
+  const canContinue =
+    (step === 1 && !!language) ||
+    (step === 2 && !!level) ||
+    (step === 3 && !!goal) ||
+    (step === 4 && !!nativeLanguage.trim()) ||
+    (step === 5 && !!fullName.trim())
+
   return (
-    <div className="min-h-screen bg-[#f5f4f0] flex flex-col">
-      <div className="w-full h-1 bg-gray-200">
-        <div
-          className="h-1 bg-[#111111] transition-all duration-500"
-          style={{ width: `${progress}%` }}
-        />
+    <div style={{
+      minHeight: '100vh',
+      background: '#0a0a0a',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '32px 24px',
+      fontFamily: 'inherit',
+    }}>
+      {/* Header */}
+      <div style={{ width: '100%', maxWidth: '560px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px' }}>
+        <span style={{ color: '#4ade80', fontWeight: '800', fontSize: '20px' }}>Glotto</span>
+        <span style={{ color: '#333', fontSize: '14px' }}>{step} of {totalSteps}</span>
       </div>
 
-      <div className="flex items-center justify-between px-8 py-6">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Glotto" className="w-7 h-7 object-contain" />
-          <span className="font-bold text-[#111111] text-lg">Glotto</span>
-        </div>
-        <span className="text-gray-400 text-sm">{step + 1} of {STEPS.length}</span>
+      {/* Progress bar */}
+      <div style={{ width: '100%', maxWidth: '560px', height: '2px', background: '#1a1a1a', borderRadius: '2px', marginBottom: '48px' }}>
+        <div style={{
+          height: '2px', background: '#4ade80', borderRadius: '2px',
+          width: `${(step / totalSteps) * 100}%`, transition: 'width 0.3s'
+        }} />
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
-        <div className="w-full max-w-2xl">
-          <div className="mb-10 text-center">
-            <h1 className="text-3xl font-bold text-[#111111] mb-3">{currentStep.title}</h1>
-            <p className="text-gray-500">{currentStep.subtitle}</p>
+      {/* Content */}
+      <div style={{ width: '100%', maxWidth: '560px' }}>
+
+        {/* STEP 1 — Language */}
+        {step === 1 && (
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>Which language?</h1>
+            <p style={{ color: '#555', fontSize: '16px', textAlign: 'center', marginBottom: '36px' }}>Choose your target language</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '32px' }}>
+              {LANGUAGES.map(l => (
+                <div key={l.code} onClick={() => setLanguage(l.code)} style={{
+                  background: language === l.code ? '#0f2a1a' : '#111',
+                  border: `2px solid ${language === l.code ? '#4ade80' : '#1f1f1f'}`,
+                  borderRadius: '14px', padding: '20px', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                  transition: 'all 0.15s'
+                }}>
+                  <span style={{ fontSize: '28px' }}>{l.flag}</span>
+                  <span style={{ color: language === l.code ? '#4ade80' : '#fff', fontSize: '15px', fontWeight: '600' }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
 
-          {currentStep.type === 'grid' && (
-            <div className="grid grid-cols-4 gap-3 mb-10">
-              {currentStep.options.map((option: Option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleSelect(option.value)}
-                  className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${
-                    selections[currentStep.id] === option.value
-                      ? 'border-[#111111] bg-[#111111] text-white'
-                      : 'border-gray-200 bg-white text-[#111111] hover:border-gray-300'
-                  }`}
-                >
-                  {/* @ts-ignore */}
-                 <span className="text-3xl">{(option as any).flag}</span>
-                  <span className="text-sm font-medium">{option.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {(currentStep.type === 'list' || currentStep.type === 'commitment') && (
-            <div className="flex flex-col gap-3 mb-10">
-              {currentStep.options.map((option: any) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleSelect(option.value)}
-                  className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
-                    selections[currentStep.id] === option.value
-                      ? 'border-[#111111] bg-[#111111] text-white'
-                      : 'border-gray-200 bg-white text-[#111111] hover:border-gray-300'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                    selections[currentStep.id] === option.value
-                      ? 'border-white bg-white'
-                      : 'border-gray-300'
-                  }`}>
-                    {selections[currentStep.id] === option.value && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#111111]" />
-                    )}
-                  </div>
+        {/* STEP 2 — Level */}
+        {step === 2 && (
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>What is your level?</h1>
+            <p style={{ color: '#555', fontSize: '16px', textAlign: 'center', marginBottom: '36px' }}>Be honest — we adapt everything to where you are</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '32px' }}>
+              {LEVELS.map(l => (
+                <div key={l.code} onClick={() => setLevel(l.code)} style={{
+                  background: level === l.code ? '#0f2a1a' : '#111',
+                  border: `2px solid ${level === l.code ? '#4ade80' : '#1f1f1f'}`,
+                  borderRadius: '14px', padding: '18px 20px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  transition: 'all 0.15s'
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '10px',
+                    background: level === l.code ? '#4ade80' : '#1a1a1a',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: '800', fontSize: '13px',
+                    color: level === l.code ? '#050f06' : '#555',
+                    flexShrink: 0
+                  }}>{l.code}</div>
                   <div>
-                    <p className="font-semibold">{option.label}</p>
-                    {option.description && (
-                      <p className={`text-sm mt-0.5 ${
-                        selections[currentStep.id] === option.value ? 'text-gray-300' : 'text-gray-500'
-                      }`}>{option.description}</p>
-                    )}
+                    <div style={{ color: level === l.code ? '#4ade80' : '#fff', fontWeight: '700', fontSize: '15px' }}>{l.label}</div>
+                    <div style={{ color: '#555', fontSize: '13px', marginTop: '2px' }}>{l.desc}</div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          <button
-            onClick={handleNext}
-            disabled={!selections[currentStep.id] || loading}
-            className="w-full py-4 rounded-2xl bg-[#111111] text-white font-bold text-base hover:bg-[#222222] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Setting up your experience...' : step === STEPS.length - 1 ? 'Start my journey →' : 'Continue →'}
-          </button>
+        {/* STEP 3 — Goal */}
+        {step === 3 && (
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>What is your dream goal?</h1>
+            <p style={{ color: '#555', fontSize: '16px', textAlign: 'center', marginBottom: '36px' }}>Everything we build for you aims at this outcome</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '32px' }}>
+              {GOALS.map(g => (
+                <div key={g.code} onClick={() => setGoal(g.code)} style={{
+                  background: goal === g.code ? '#0f2a1a' : '#111',
+                  border: `2px solid ${goal === g.code ? '#4ade80' : '#1f1f1f'}`,
+                  borderRadius: '14px', padding: '18px 20px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  transition: 'all 0.15s'
+                }}>
+                  <span style={{ fontSize: '24px', flexShrink: 0 }}>{g.icon}</span>
+                  <div>
+                    <div style={{ color: goal === g.code ? '#4ade80' : '#fff', fontWeight: '700', fontSize: '15px' }}>{g.label}</div>
+                    <div style={{ color: '#555', fontSize: '13px', marginTop: '2px' }}>{g.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-          {step > 0 && (
-            <button
-              onClick={() => setStep(prev => prev - 1)}
-              className="w-full py-3 mt-3 text-gray-400 text-sm hover:text-gray-600 transition-colors"
-            >
-              ← Back
-            </button>
-          )}
+        {/* STEP 4 — Native language */}
+        {step === 4 && (
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>Your native language?</h1>
+            <p style={{ color: '#555', fontSize: '16px', textAlign: 'center', marginBottom: '36px' }}>Lex will use this to explain things in a way that makes sense to you</p>
+            <input
+              value={nativeLanguage}
+              onChange={e => setNativeLanguage(e.target.value)}
+              placeholder='e.g. English, Greek, Polish...'
+              style={{
+                width: '100%', background: '#111', border: '2px solid #1f1f1f',
+                borderRadius: '14px', padding: '18px 20px', color: '#fff',
+                fontSize: '16px', outline: 'none', marginBottom: '32px',
+                boxSizing: 'border-box', fontFamily: 'inherit'
+              }}
+              onFocus={e => e.target.style.borderColor = '#4ade80'}
+              onBlur={e => e.target.style.borderColor = '#1f1f1f'}
+            />
+          </div>
+        )}
 
-        </div>
+        {/* STEP 5 — Name */}
+        {step === 5 && (
+          <div>
+            <h1 style={{ color: '#fff', fontSize: '32px', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>Last thing — your name</h1>
+            <p style={{ color: '#555', fontSize: '16px', textAlign: 'center', marginBottom: '36px' }}>Lex will use this every session. Make it personal.</p>
+            <input
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder='Your first name'
+              style={{
+                width: '100%', background: '#111', border: '2px solid #1f1f1f',
+                borderRadius: '14px', padding: '18px 20px', color: '#fff',
+                fontSize: '16px', outline: 'none', marginBottom: '16px',
+                boxSizing: 'border-box', fontFamily: 'inherit'
+              }}
+              onFocus={e => e.target.style.borderColor = '#4ade80'}
+              onBlur={e => e.target.style.borderColor = '#1f1f1f'}
+            />
+            <div style={{ background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: '14px', padding: '16px 20px', marginBottom: '32px' }}>
+              <p style={{ color: '#4ade80', fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>Your setup</p>
+              <p style={{ color: '#aaa', fontSize: '14px' }}>
+                Learning <strong style={{ color: '#fff' }}>{language}</strong> from <strong style={{ color: '#fff' }}>{level}</strong> — goal: <strong style={{ color: '#fff' }}>{GOALS.find(g => g.code === goal)?.label}</strong>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Continue button */}
+        <button
+          onClick={step === totalSteps ? handleFinish : () => setStep(step + 1)}
+          disabled={!canContinue || saving}
+          style={{
+            width: '100%', padding: '18px',
+            background: saving ? '#1a3a2a' : '#4ade80',
+            color: saving ? '#2a5a3a' : '#050f06',
+            border: 'none', borderRadius: '14px',
+            fontSize: '16px', fontWeight: '800',
+            cursor: canContinue ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s',
+            opacity: canContinue && !saving ? 1 : 0.3
+          }}
+        >
+          {saving ? 'Setting up your account...' : step === totalSteps ? 'Start learning →' : 'Continue →'}
+        </button>
+
+        {step > 1 && (
+          <button onClick={() => setStep(step - 1)} style={{
+            width: '100%', padding: '14px', background: 'none',
+            border: 'none', color: '#333', fontSize: '14px',
+            cursor: 'pointer', marginTop: '12px'
+          }}>← Back</button>
+        )}
+
       </div>
     </div>
   )
-} 
+}

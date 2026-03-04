@@ -1,98 +1,80 @@
 'use client'
-
 import { useState } from 'react'
 
-const mockVocabulary = [
-  { word: 'Hola', translation: 'Hello', strength: 95, daysAgo: 0 },
-  { word: 'Gracias', translation: 'Thank you', strength: 88, daysAgo: 1 },
-  { word: 'Por favor', translation: 'Please', strength: 72, daysAgo: 2 },
-  { word: 'Buenos días', translation: 'Good morning', strength: 61, daysAgo: 3 },
-  { word: 'Lo siento', translation: 'I am sorry', strength: 45, daysAgo: 4 },
-  { word: 'No entiendo', translation: 'I don\'t understand', strength: 38, daysAgo: 5 },
-  { word: 'Quiero', translation: 'I want', strength: 22, daysAgo: 6 },
-  { word: 'Dónde está', translation: 'Where is', strength: 15, daysAgo: 7 },
-  { word: 'Cuánto cuesta', translation: 'How much', strength: 8, daysAgo: 8 },
+const vocab = [
+  { word: 'Hola',        trans: 'Hello',            pct: 95, status: 'strong'   },
+  { word: 'Gracias',     trans: 'Thank you',         pct: 88, status: 'strong'   },
+  { word: 'Por favor',   trans: 'Please',            pct: 72, status: 'strong'   },
+  { word: 'Buenos días', trans: 'Good morning',      pct: 61, status: 'fading'   },
+  { word: 'Lo siento',   trans: 'I am sorry',        pct: 45, status: 'fading'   },
+  { word: 'No entiendo', trans: "I don't understand",pct: 38, status: 'forgotten'},
+  { word: 'Quiero',      trans: 'I want',            pct: 22, status: 'forgotten'},
+  { word: 'Dónde está',  trans: 'Where is',          pct: 15, status: 'forgotten'},
+  { word: 'Cuánto cuesta',trans: 'How much',         pct: 8,  status: 'forgotten'},
 ]
 
-function getStrengthColor(strength: number) {
-  if (strength >= 70) return { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-400', label: 'Strong' }
-  if (strength >= 40) return { bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400', label: 'Fading' }
-  return { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-400', label: 'Forgotten' }
+const statusConfig = {
+  strong:    { color: '#4ade80', bg: 'rgba(74,222,128,0.06)',   border: 'rgba(74,222,128,0.12)',  label: 'Strong'   },
+  fading:    { color: '#fbbf24', bg: 'rgba(251,191,36,0.06)',   border: 'rgba(251,191,36,0.12)',  label: 'Fading'   },
+  forgotten: { color: '#f87171', bg: 'rgba(248,113,113,0.06)',  border: 'rgba(248,113,113,0.12)', label: 'Review'   },
 }
 
 export default function ForgettingCurve() {
-      const [filter, setFilter] = useState<'all' | 'review'>('all')
-
-  const strong = mockVocabulary.filter(w => w.strength >= 70).length
-  const fading = mockVocabulary.filter(w => w.strength >= 40 && w.strength < 70).length
-  const forgotten = mockVocabulary.filter(w => w.strength < 40).length
-
-  const displayed = filter === 'review'
-    ? mockVocabulary.filter(w => w.strength < 70)
-    : mockVocabulary
+  const [filter, setFilter] = useState<'all' | 'strong' | 'fading' | 'forgotten'>('all')
+  const counts = { strong: vocab.filter(v=>v.status==='strong').length, fading: vocab.filter(v=>v.status==='fading').length, forgotten: vocab.filter(v=>v.status==='forgotten').length }
+  const shown = filter === 'all' ? vocab : vocab.filter(v => v.status === filter)
 
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div style={{fontFamily:'Noto Sans,system-ui,sans-serif'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'18px'}}>
         <div>
-          <h3 className="text-[#111111] font-bold">Forgetting Curve</h3>
-          <p className="text-gray-400 text-xs mt-0.5">Words fading from memory need review</p>
+          <h3 style={{color:'#fff',fontSize:'15px',fontWeight:'800',margin:'0 0 3px',letterSpacing:'-0.4px',fontFamily:'Syne,sans-serif'}}>Forgetting Curve</h3>
+          <p style={{color:'#252525',fontSize:'9px',margin:0,fontFamily:'JetBrains Mono,monospace',letterSpacing:'1px'}}>WORDS FADING FROM MEMORY NEED REVIEW</p>
         </div>
-        <button
-          onClick={() => setFilter(filter === 'all' ? 'review' : 'all')}
-          className="text-xs font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-        >
-          {filter === 'all' ? 'Show review only' : 'Show all'}
+        <button onClick={()=>setFilter(f=>f==='forgotten'?'all':'forgotten')}
+          style={{background: filter==='forgotten' ? 'rgba(248,113,113,0.1)' : '#111',border: filter==='forgotten' ? '1px solid rgba(248,113,113,0.2)' : '1px solid #1a1a1a',color: filter==='forgotten' ? '#f87171' : '#333',borderRadius:'20px',padding:'4px 12px',fontSize:'9px',fontWeight:'600',cursor:'pointer',fontFamily:'JetBrains Mono,monospace',letterSpacing:'1px',transition:'all 0.15s ease'}}>
+          {filter==='forgotten' ? 'SHOW ALL' : 'REVIEW ONLY'}
         </button>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-green-50 rounded-2xl p-3 text-center">
-          <p className="text-green-700 font-bold text-xl">{strong}</p>
-          <p className="text-green-600 text-xs">Strong</p>
-        </div>
-        <div className="bg-yellow-50 rounded-2xl p-3 text-center">
-          <p className="text-yellow-700 font-bold text-xl">{fading}</p>
-          <p className="text-yellow-600 text-xs">Fading</p>
-        </div>
-        <div className="bg-red-50 rounded-2xl p-3 text-center">
-          <p className="text-red-700 font-bold text-xl">{forgotten}</p>
-          <p className="text-red-600 text-xs">Need review</p>
-        </div>
-      </div>
-
-      {/* Word List */}
-      <div className="flex flex-col gap-2">
-        {displayed.map((item) => {
-          const colors = getStrengthColor(item.strength)
+      {/* Summary pills */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',marginBottom:'16px'}}>
+        {(['strong','fading','forgotten'] as const).map(s => {
+          const cfg = statusConfig[s]
           return (
-            <div
-              key={item.word}
-              className={`flex items-center gap-3 p-3 rounded-2xl ${colors.bg}`}
-            >
-              <div className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
-              <div className="flex-1">
-                <span className={`font-semibold text-sm ${colors.text}`}>{item.word}</span>
-                <span className="text-gray-400 text-xs ml-2">{item.translation}</span>
-              </div>
-              <div className="text-right">
-                <p className={`text-xs font-medium ${colors.text}`}>{item.strength}%</p>
-                <p className="text-gray-400 text-xs">{colors.label}</p>
-              </div>
-              <button className={`text-xs px-2 py-1 rounded-lg font-medium ${colors.text} bg-white bg-opacity-70 hover:bg-opacity-100 transition-all`}>
-                Review
-              </button>
-            </div>
+            <button key={s} onClick={()=>setFilter(f=>f===s?'all':s)}
+              style={{background: filter===s ? cfg.bg : '#111', border:`1px solid ${filter===s ? cfg.border : '#1a1a1a'}`,borderRadius:'10px',padding:'12px',textAlign:'center',cursor:'pointer',transition:'all 0.15s ease'}}>
+              <p style={{color:cfg.color,fontSize:'20px',fontWeight:'800',margin:'0 0 2px',fontFamily:'Syne,sans-serif'}}>{counts[s]}</p>
+              <p style={{color: filter===s ? cfg.color : '#252525',fontSize:'8px',margin:0,fontFamily:'JetBrains Mono,monospace',letterSpacing:'1.5px',textTransform:'uppercase'}}>{cfg.label}</p>
+            </button>
           )
         })}
       </div>
 
-      {mockVocabulary.length === 0 && (
-        <p className="text-gray-400 text-sm text-center py-6">
-          Complete your first lesson to start tracking vocabulary
-        </p>
-      )}
+      {/* Word list */}
+      <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+        {shown.map(v => {
+          const cfg = statusConfig[v.status as keyof typeof statusConfig]
+          return (
+            <div key={v.word}
+              style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 14px',background:cfg.bg,border:`1px solid ${cfg.border}`,borderRadius:'9px',transition:'all 0.15s ease'}}>
+              <div style={{width:'6px',height:'6px',borderRadius:'50%',background:cfg.color,flexShrink:0,boxShadow:`0 0 6px ${cfg.color}`}} />
+              <div style={{flex:1}}>
+                <span style={{color:'#fff',fontSize:'13px',fontWeight:'600',fontFamily:'Noto Sans,sans-serif'}}>{v.word}</span>
+                <span style={{color:'#2a2a2a',fontSize:'12px',fontFamily:'Noto Sans,sans-serif',marginLeft:'8px'}}>{v.trans}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <span style={{color:cfg.color,fontSize:'11px',fontWeight:'700',fontFamily:'JetBrains Mono,monospace'}}>{v.pct}%</span>
+                <button style={{background:'#111',border:`1px solid ${cfg.border}`,color:cfg.color,borderRadius:'6px',padding:'4px 10px',fontSize:'10px',fontWeight:'600',cursor:'pointer',fontFamily:'JetBrains Mono,monospace',letterSpacing:'0.5px',transition:'all 0.15s ease'}}
+                  onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=cfg.bg}
+                  onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='#111'}>
+                  Review
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
