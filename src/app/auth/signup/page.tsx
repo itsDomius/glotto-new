@@ -14,13 +14,11 @@ export default function SignUp() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
 
   const handleSignUp = async () => {
     setLoading(true)
-    setMessage('')
     setError('')
 
     const { error } = await supabase.auth.signUp({
@@ -31,11 +29,10 @@ export default function SignUp() {
 
     if (error) {
       setError(error.message)
+      setLoading(false)
     } else {
-      setMessage('Check your email to confirm your account!')
+      router.push('/onboarding')
     }
-
-    setLoading(false)
   }
 
   return (
@@ -141,18 +138,6 @@ export default function SignUp() {
             borderRadius: '10px', padding: '12px 16px',
           }}>
             <p style={{ color: '#ff6b6b', fontSize: '13px', margin: 0 }}>{error}</p>
-          </div>
-        )}
-
-        {/* Success */}
-        {message && (
-          <div style={{
-            background: GREEN_DIM, border: `1px solid ${GREEN_BORDER}`,
-            borderRadius: '10px', padding: '12px 16px',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
-            <span style={{ fontSize: '16px' }}>✓</span>
-            <p style={{ color: GREEN, fontSize: '13px', margin: 0 }}>{message}</p>
           </div>
         )}
 
