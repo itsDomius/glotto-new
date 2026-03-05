@@ -49,19 +49,33 @@ export default function OnboardingPage() {
 
   const handleFinish = async () => {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
 
-    await supabase.from('profiles').upsert({
-      user_id: user.id,
-      full_name: fullName,
-      target_language: language,
-      current_level: level,
-      dream_goal: goal,
-      native_language: nativeLanguage,
-      onboarding_complete: true,
-    })
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      console.log('User:', user, 'Error:', userError)
 
+      if (!user) {
+        console.log('No user found, redirecting to login')
+        router.push('/auth/login')
+        return
+      }
+
+      const { data, error } = await supabase.from('profiles').upsert({
+        user_id: user.id,
+        full_name: fullName,
+        target_language: language,
+        current_level: level,
+        dream_goal: goal,
+        native_language: nativeLanguage,
+        onboarding_complete: true,
+      })
+
+      console.log('Profile save result:', data, 'Error:', error)
+    } catch (err) {
+      console.error('Onboarding error:', err)
+    }
+
+    // Always redirect to dashboard
     router.push('/dashboard')
   }
 
