@@ -1,5 +1,6 @@
 'use client'
 
+import InstallButton from '@/components/InstallButton'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -339,7 +340,7 @@ export default function LandingPage() {
           <span style={{ color: '#888' }}>Actual fluency. In 7 days, guaranteed.</span>
         </p>
 
-        <div className="hero-cta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="hero-cta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
           <button className="cta-btn" onClick={() => router.push('/auth/signup')} style={{
             background: '#4ade80', border: 'none', borderRadius: '14px',
             color: '#050f06', fontSize: '16px', fontWeight: '800',
@@ -347,6 +348,10 @@ export default function LandingPage() {
           }}>
             Start speaking free →
           </button>
+          
+          {/* THE VIP ENTRANCE: Injected right here */}
+          <InstallButton />
+          
           <button onClick={() => router.push('/pricing')} style={{
             background: 'transparent', border: '1px solid #222', borderRadius: '14px',
             color: '#888', fontSize: '16px', padding: '16px 28px',
