@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
 const PRICE_MAP: Record<string, string> = {
   explorer: process.env.STRIPE_PRICE_EXPLORER!,
   pro: process.env.STRIPE_PRICE_PRO!,
@@ -11,6 +9,8 @@ const PRICE_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+
     const { plan, billing, userId, email } = await req.json()
 
     const priceId = PRICE_MAP[plan]
