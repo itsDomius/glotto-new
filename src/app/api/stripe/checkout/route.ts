@@ -1,39 +1,29 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-export async function POST() {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const PRICE_MAP: Record<string, string> = {
+  explorer: process.env.STRIPE_PRICE_EXPLORER!,
+  pro: process.env.STRIPE_PRICE_PRO!,
+  elite: process.env.STRIPE_PRICE_ELITE!,
+}
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'eur',
-            unit_amount: 1000, // €10.00 in cents
-            product_data: {
-              name: 'Fluency Stake',
-              description: 'Commit €10 to your fluency goal. Earn it back when you prove your progress.',
-              images: [],
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${baseUrl}/dashboard?stake=success`,
-      cancel_url: `${baseUrl}/dashboard?stake=cancelled`,
-    })
+export async function POST(req: NextRequest) {
+  const { plan, billing, userId, email } = await req.json()
 
-    return NextResponse.json({ url: session.url })
-  } catch (err) {
-    console.error('Stripe checkout error:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Checkout failed' },
-      { status: 500 }
-    )
-  }
+  const priceId = PRICE_MAP[plan]
+  if (!priceId) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    customer_email: email,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
+    metadata: { userId, plan, billing },
+  })
+
+  return NextResponse.json({ url: session.url })
 }

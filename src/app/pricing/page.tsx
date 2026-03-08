@@ -2,6 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 const GREEN = '#4ade80'
 const GREEN_DIM = '#0f2a1a'
@@ -89,15 +95,15 @@ const FAQS = [
   },
   {
     q: 'What is the 7-day guarantee?',
-    a: 'If you don\'t have a real conversation in your target language within 7 days, we refund you in full. No questions asked.',
+    a: "If you don't have a real conversation in your target language within 7 days, we refund you in full. No questions asked.",
   },
   {
     q: 'What is Safe Mode?',
-    a: 'For your first 30 sessions, Lex never corrects you directly. It models correct usage naturally in its responses. This removes the fear of making mistakes — the #1 reason people stop learning.',
+    a: "For your first 30 sessions, Lex never corrects you directly. It models correct usage naturally in its responses. This removes the fear of making mistakes — the #1 reason people stop learning.",
   },
   {
     q: 'What are The Proof recordings?',
-    a: 'Every month, Lex records a short conversation with you. You can listen back to how you spoke 3 months ago vs. today. Progress you can hear — not just believe.',
+    a: "Every month, Lex records a short conversation with you. You can listen back to how you spoke 3 months ago vs. today. Progress you can hear — not just believe.",
   },
   {
     q: 'How does the monthly human session work? (Elite)',
@@ -105,17 +111,55 @@ const FAQS = [
   },
   {
     q: 'What happens if I miss a day?',
-    a: 'Your streak resets, but nothing else does. Your missions, XP, and progress are always saved. Lex picks up exactly where you left off.',
+    a: "Your streak resets, but nothing else does. Your missions, XP, and progress are always saved. Lex picks up exactly where you left off.",
   },
 ]
 
 export default function PricingPage() {
   const [annual, setAnnual] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const router = useRouter()
 
-  const handlePlan = (planId: string) => {
-    router.push(`/auth/signup?plan=${planId}&billing=${annual ? 'annual' : 'monthly'}`)
+  const handlePlan = async (planId: string) => {
+    setLoadingPlan(planId)
+
+    try {
+      // Check if user is logged in
+      const { data: { user } } = await supabase.auth.getUser()
+
+      // If not logged in, send to signup with plan pre-selected
+      if (!user) {
+        router.push(`/auth/signup?plan=${planId}&billing=${annual ? 'annual' : 'monthly'}`)
+        return
+      }
+
+      // User is logged in — create Stripe checkout session
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: planId,
+          billing: annual ? 'annual' : 'monthly',
+          userId: user.id,
+          email: user.email,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        console.error('No checkout URL returned', data)
+        alert('Something went wrong. Please try again.')
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+      alert('Something went wrong. Please try again.')
+    } finally {
+      setLoadingPlan(null)
+    }
   }
 
   return (
@@ -252,6 +296,8 @@ export default function PricingPage() {
       }}>
         {PLANS.map((plan) => {
           const price = annual ? plan.annualPrice : plan.monthlyPrice
+          const isLoading = loadingPlan === plan.id
+
           return (
             <div
               key={plan.id}
@@ -320,6 +366,7 @@ export default function PricingPage() {
               {/* CTA */}
               <button
                 onClick={() => handlePlan(plan.id)}
+                disabled={isLoading}
                 style={{
                   width: '100%',
                   padding: '14px',
@@ -329,12 +376,13 @@ export default function PricingPage() {
                   borderRadius: '12px',
                   fontSize: '15px',
                   fontWeight: '800',
-                  cursor: 'pointer',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
                   marginBottom: '28px',
                   transition: 'all 0.15s',
+                  opacity: isLoading ? 0.7 : 1,
                 }}
                 onMouseEnter={e => {
-                  if (!plan.popular) {
+                  if (!plan.popular && !isLoading) {
                     (e.target as HTMLButtonElement).style.background = `${plan.color}18`
                   }
                 }}
@@ -344,7 +392,7 @@ export default function PricingPage() {
                   }
                 }}
               >
-                {plan.cta} →
+                {isLoading ? 'Redirecting...' : `${plan.cta} →`}
               </button>
 
               {/* Divider */}
@@ -378,11 +426,7 @@ export default function PricingPage() {
       </div>
 
       {/* Guarantee strip */}
-      <div style={{
-        maxWidth: '840px',
-        margin: '0 auto 80px',
-        padding: '0 24px',
-      }}>
+      <div style={{ maxWidth: '840px', margin: '0 auto 80px', padding: '0 24px' }}>
         <div style={{
           background: GREEN_DIM,
           border: `1px solid ${GREEN_BORDER}`,
@@ -413,17 +457,13 @@ export default function PricingPage() {
         <p style={{ textAlign: 'center', color: '#555', fontSize: '16px', marginBottom: '40px' }}>
           Compare what you spend vs. what you actually get.
         </p>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '16px',
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           {[
             {
               label: 'Language School',
               price: '€6,500',
               period: 'over 6 years',
-              outcome: 'Maybe B2 if you don\'t quit',
+              outcome: "Maybe B2 if you don't quit",
               color: '#ff4444',
               bg: '#1a0a0a',
               border: '#2a1010',
