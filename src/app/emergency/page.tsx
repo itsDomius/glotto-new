@@ -1,308 +1,420 @@
 'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
-const LESSON = {
-  title: "Order a coffee in Spanish",
-  level: "A1",
-  duration: 5,
-  steps: [
-    {
-      id: 1,
-      type: 'vocab',
-      title: 'Learn 3 key phrases',
-      content: [
-        { phrase: 'Un café, por favor', translation: 'A coffee, please', pronunciation: 'oon kah-FEH por fah-VOR' },
-        { phrase: '¿Cuánto cuesta?', translation: 'How much is it?', pronunciation: 'KWAN-toh KWES-tah' },
-        { phrase: 'Gracias', translation: 'Thank you', pronunciation: 'GRAH-see-as' },
-      ]
-    },
-    {
-      id: 2,
-      type: 'observe',
-      title: 'Read this conversation',
-      content: {
-        dialogue: [
-          { speaker: 'You', line: 'Buenos días. Un café con leche, por favor.' },
-          { speaker: 'Barista', line: '¿Grande o pequeño?' },
-          { speaker: 'You', line: 'Grande, por favor. ¿Cuánto cuesta?' },
-          { speaker: 'Barista', line: 'Son dos euros.' },
-          { speaker: 'You', line: 'Gracias.' },
-        ],
-        insight: 'Notice: Spanish uses "Son" (they are) for prices, not "Es" (it is). This is one of the most common patterns in everyday Spanish.'
-      }
-    },
-    {
-      id: 3,
-      type: 'quiz',
-      title: 'Quick check',
-      content: {
-        question: 'How do you say "A coffee, please" in Spanish?',
-        options: [
-          { text: 'Un café, por favor', correct: true },
-          { text: 'Un té, gracias', correct: false },
-          { text: 'Café con leche', correct: false },
-          { text: 'Por favor café', correct: false },
-        ]
-      }
-    },
-    {
-      id: 4,
-      type: 'produce',
-      title: 'Your turn',
-      content: {
-        prompt: 'You walk into a café. Order a large coffee with milk and ask how much it costs.',
-        hint: 'Use: Un café con leche grande, por favor. ¿Cuánto cuesta?',
-        example: 'Buenos días. Un café con leche grande, por favor. ¿Cuánto cuesta?'
-      }
-    },
-    {
-      id: 5,
-      type: 'complete',
-      title: 'Session complete!',
-      content: {
-        summary: "You just learned how to order coffee in Spanish — a skill you can use in any Spanish-speaking country today.",
-        learned: ['Un café, por favor', '¿Cuánto cuesta?', 'Son dos euros', 'Grande / Pequeño'],
-        xp: 25,
-        nextHook: "Tomorrow: Learn how to order food from a menu — you're 1 step closer to your café reward 🎁"
-      }
-    }
-  ]
+type Message = { role: 'user' | 'assistant'; content: string }
+
+const EMERGENCY_SYSTEM_PROMPT = `You are an emergency translator and fixer. The user is in a high-stress situation in a foreign country right now. Provide extremely short, phonetically easy-to-read translations or direct instructions. NO conversational filler. NO formatting. Just the exact words they need to say to survive this moment.`
+
+const QUICK_PHRASES = [
+  { label: 'I need help', emoji: '🆘' },
+  { label: 'Call the police', emoji: '🚔' },
+  { label: 'I need a doctor', emoji: '🏥' },
+  { label: 'I don\'t understand', emoji: '❓' },
+  { label: 'Where is the exit?', emoji: '🚪' },
+  { label: 'How much does this cost?', emoji: '💰' },
+]
+
+function TypingDots() {
+  const [dot, setDot] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setDot(d => (d + 1) % 3), 300)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <span style={{ display: 'inline-flex', gap: '5px', alignItems: 'center' }}>
+      {[0, 1, 2].map(i => (
+        <span key={i} style={{
+          width: '8px', height: '8px', borderRadius: '50%',
+          background: i === dot ? '#ff3b3b' : '#2a0a0a',
+          transition: 'background 0.2s',
+          display: 'inline-block',
+        }} />
+      ))}
+    </span>
+  )
 }
 
-export default function EmergencyLesson() {
-  const [currentStep, setCurrentStep] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
-  const [showAnswer, setShowAnswer] = useState(false)
-  const [showExample, setShowExample] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(300)
+export default function EmergencyPage() {
+  const [activated, setActivated] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [language, setLanguage] = useState('spanish')
+  const [buttonPulsing, setButtonPulsing] = useState(true)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev > 0 ? prev - 1 : 0)
-    }, 1000)
-    return () => clearInterval(timer)
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('target_language')
+          .eq('user_id', user.id)
+          .single()
+        if (profile?.target_language) setLanguage(profile.target_language)
+      }
+    }
+    getUser()
   }, [])
 
-  const step = LESSON.steps[currentStep]
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
-  const progress = ((currentStep) / (LESSON.steps.length - 1)) * 100
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
-  const handleNext = () => {
-    if (currentStep < LESSON.steps.length - 1) {
-      setCurrentStep(prev => prev + 1)
-      setSelectedAnswer(null)
-      setShowAnswer(false)
-      setShowExample(false)
+  const activate = () => {
+    setActivated(true)
+    setButtonPulsing(false)
+    setTimeout(() => inputRef.current?.focus(), 300)
+  }
+
+  const streamResponse = async (msgHistory: Message[]) => {
+    const res = await fetch('/api/emergency', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: msgHistory, language }),
+    })
+
+    if (!res.ok) {
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { role: 'assistant', content: 'Error. Try again.' }
+        return updated
+      })
+      return
+    }
+
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let full = ''
+
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      full += decoder.decode(value)
+      setMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { role: 'assistant', content: full }
+        return updated
+      })
     }
   }
 
+  const send = async (text?: string) => {
+    const msg = (text || input).trim()
+    if (!msg || loading) return
+
+    setLoading(true)
+    const newMessages: Message[] = [...messages, { role: 'user', content: msg }]
+    setMessages(newMessages)
+    setInput('')
+
+    await streamResponse(newMessages)
+    setLoading(false)
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }
+
+  // ── PRE-ACTIVATION: Panic Button screen ─────────────────────────────────────
+  if (!activated) return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#050505',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: '"Courier New", Courier, monospace',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <style>{`
+        @keyframes pulseRed {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,59,0.6), 0 0 60px rgba(255,59,59,0.15); }
+          50% { box-shadow: 0 0 0 24px rgba(255,59,59,0), 0 0 80px rgba(255,59,59,0.3); }
+        }
+        @keyframes scanline {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100vh); }
+        }
+        @keyframes flicker {
+          0%, 97%, 100% { opacity: 1; }
+          98% { opacity: 0.7; }
+          99% { opacity: 0.9; }
+        }
+        .sos-btn {
+          animation: pulseRed 1.8s ease-in-out infinite;
+          transition: transform 0.1s ease, background 0.1s ease;
+          cursor: pointer;
+          border: none;
+          font-family: "Courier New", Courier, monospace;
+        }
+        .sos-btn:hover { transform: scale(1.03); }
+        .sos-btn:active { transform: scale(0.97); }
+        .flicker { animation: flicker 8s ease infinite; }
+        .scanline {
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 2px;
+          background: rgba(255,59,59,0.08);
+          animation: scanline 4s linear infinite;
+          pointer-events: none;
+        }
+      `}</style>
+
+      {/* Scanline effect */}
+      <div className="scanline" />
+
+      {/* Grid background */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(rgba(255,59,59,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,59,59,0.03) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Corner decorations */}
+      {[
+        { top: '24px', left: '24px', borderTop: '2px solid #ff3b3b', borderLeft: '2px solid #ff3b3b' },
+        { top: '24px', right: '24px', borderTop: '2px solid #ff3b3b', borderRight: '2px solid #ff3b3b' },
+        { bottom: '24px', left: '24px', borderBottom: '2px solid #ff3b3b', borderLeft: '2px solid #ff3b3b' },
+        { bottom: '24px', right: '24px', borderBottom: '2px solid #ff3b3b', borderRight: '2px solid #ff3b3b' },
+      ].map((style, i) => (
+        <div key={i} style={{ position: 'absolute', width: '32px', height: '32px', ...style }} />
+      ))}
+
+      {/* Back */}
+      <button
+        onClick={() => router.push('/dashboard')}
+        style={{ position: 'absolute', top: '32px', left: '50%', transform: 'translateX(-50%)', background: 'none', border: 'none', color: '#330000', fontSize: '11px', cursor: 'pointer', letterSpacing: '2px', fontFamily: 'inherit' }}
+      >
+        ← BACK
+      </button>
+
+      {/* Status */}
+      <div className="flicker" style={{ marginBottom: '48px', textAlign: 'center' }}>
+        <p style={{ color: '#ff3b3b', fontSize: '11px', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '8px', opacity: 0.6 }}>
+          EMERGENCY TRANSLATOR
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <div style={{ width: '6px', height: '6px', background: '#ff3b3b', borderRadius: '50%', boxShadow: '0 0 8px #ff3b3b' }} />
+          <span style={{ color: '#ff3b3b', fontSize: '10px', letterSpacing: '3px', opacity: 0.5 }}>STANDBY</span>
+        </div>
+      </div>
+
+      {/* THE BUTTON */}
+      <button
+        className="sos-btn"
+        onClick={activate}
+        style={{
+          width: '240px',
+          height: '240px',
+          borderRadius: '50%',
+          background: '#ff3b3b',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          marginBottom: '48px',
+        }}
+      >
+        <span style={{ fontSize: '40px', lineHeight: 1 }}>🆘</span>
+        <span style={{ fontSize: '22px', fontWeight: '900', letterSpacing: '3px' }}>SOS</span>
+        <span style={{ fontSize: '12px', letterSpacing: '2px', opacity: 0.85 }}>HELP ME SPEAK</span>
+      </button>
+
+      {/* Subtext */}
+      <p style={{ color: '#1a0a0a', fontSize: '11px', letterSpacing: '2px', textAlign: 'center', maxWidth: '280px', lineHeight: 1.8 }}>
+        INSTANT TRANSLATION<br />FOR REAL EMERGENCIES
+      </p>
+    </div>
+  )
+
+  // ── POST-ACTIVATION: Emergency chat ─────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-[#f5f4f0] flex flex-col">
+    <div style={{
+      height: '100vh',
+      background: '#050505',
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: '"Courier New", Courier, monospace',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .msg-in { animation: fadeIn 0.15s ease forwards; }
+        .send-btn { transition: all 0.12s ease; cursor: pointer; border: none; font-family: "Courier New", Courier, monospace; }
+        .send-btn:hover:not(:disabled) { background: #ff5555 !important; }
+        .send-btn:active:not(:disabled) { transform: scale(0.97); }
+        .quick-btn { transition: all 0.12s ease; cursor: pointer; border: none; font-family: "Courier New", Courier, monospace; }
+        .quick-btn:hover { background: rgba(255,59,59,0.15) !important; border-color: rgba(255,59,59,0.4) !important; }
+        .quick-btn:active { transform: scale(0.97); }
+        input:focus { outline: none; border-color: #ff3b3b !important; box-shadow: 0 0 0 1px rgba(255,59,59,0.3); }
+      `}</style>
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Glotto" className="w-7 h-7 object-contain" />
-            <div>
-              <p className="text-[#111111] font-bold text-sm">5-Minute Lesson</p>
-              <p className="text-gray-400 text-xs">{LESSON.title}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${
-              timeLeft < 60 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-            }`}>
-              ⏱ {minutes}:{seconds.toString().padStart(2, '0')}
-            </div>
+      <div style={{
+        padding: '14px 20px',
+        borderBottom: '1px solid #1a0000',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: '#080000',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '8px', height: '8px', background: '#ff3b3b', borderRadius: '50%', boxShadow: '0 0 10px #ff3b3b' }} />
+          <span style={{ color: '#ff3b3b', fontSize: '12px', letterSpacing: '3px', fontWeight: '700' }}>EMERGENCY MODE</span>
+        </div>
+        <button
+          onClick={() => { setActivated(false); setMessages([]) }}
+          style={{ background: 'none', border: '1px solid #1a0000', color: '#330000', fontSize: '10px', cursor: 'pointer', padding: '5px 12px', letterSpacing: '2px', fontFamily: 'inherit' }}
+        >
+          EXIT
+        </button>
+      </div>
+
+      {/* Quick phrases */}
+      {messages.length === 0 && (
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid #0f0000',
+          display: 'flex',
+          gap: '8px',
+          flexWrap: 'wrap',
+          background: '#050505',
+          flexShrink: 0,
+        }}>
+          {QUICK_PHRASES.map(p => (
             <button
-              onClick={() => router.push('/dashboard')}
-              className="text-gray-400 text-sm hover:text-gray-600"
+              key={p.label}
+              className="quick-btn"
+              onClick={() => send(p.label)}
+              disabled={loading}
+              style={{
+                background: 'rgba(255,59,59,0.06)',
+                border: '1px solid rgba(255,59,59,0.15)',
+                color: '#ff6b6b',
+                fontSize: '11px',
+                padding: '7px 14px',
+                borderRadius: '4px',
+                letterSpacing: '1px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
             >
-              Exit
+              <span>{p.emoji}</span>
+              <span>{p.label.toUpperCase()}</span>
             </button>
-          </div>
+          ))}
         </div>
+      )}
 
-        {/* Progress bar */}
-        <div className="max-w-2xl mx-auto mt-3">
-          <div className="w-full bg-gray-100 rounded-full h-1.5">
-            <div
-              className="h-1.5 rounded-full bg-green-500 transition-all duration-500"
-              style={{width: `${progress}%`}}
-            />
+      {/* Messages */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}>
+        {messages.length === 0 && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: 0.3 }}>
+            <span style={{ fontSize: '48px' }}>🆘</span>
+            <p style={{ color: '#ff3b3b', fontSize: '11px', letterSpacing: '3px', textAlign: 'center' }}>
+              TYPE WHAT YOU NEED<br />OR TAP A QUICK PHRASE
+            </p>
           </div>
-          <div className="flex justify-between mt-1">
-            <p className="text-gray-400 text-xs">Step {currentStep + 1} of {LESSON.steps.length}</p>
-            <p className="text-gray-400 text-xs">{Math.round(progress)}% complete</p>
+        )}
+
+        {messages.map((m, i) => (
+          <div key={i} className="msg-in" style={{
+            display: 'flex',
+            justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+          }}>
+            <div style={{
+              maxWidth: '82%',
+              padding: '12px 16px',
+              borderRadius: m.role === 'user' ? '2px 2px 0 2px' : '2px 2px 2px 0',
+              background: m.role === 'user' ? '#1a0000' : '#0a0000',
+              border: m.role === 'user'
+                ? '1px solid rgba(255,59,59,0.2)'
+                : '1px solid rgba(255,59,59,0.4)',
+              color: m.role === 'user' ? '#ff6b6b' : '#ff3b3b',
+              fontSize: m.role === 'assistant' ? '18px' : '13px',
+              lineHeight: m.role === 'assistant' ? 1.5 : 1.4,
+              fontWeight: m.role === 'assistant' ? '700' : '400',
+              letterSpacing: m.role === 'assistant' ? '0.5px' : '1px',
+              boxShadow: m.role === 'assistant' ? '0 0 20px rgba(255,59,59,0.1)' : 'none',
+            }}>
+              {!m.content && loading && i === messages.length - 1 && m.role === 'assistant'
+                ? <TypingDots />
+                : m.content}
+            </div>
           </div>
-        </div>
+        ))}
+        <div ref={bottomRef} />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10">
-        <div className="w-full max-w-2xl">
-
-          {/* Step title */}
-          <h2 className="text-2xl font-bold text-[#111111] mb-8 text-center">{step.title}</h2>
-
-          {/* VOCAB STEP */}
-          {step.type === 'vocab' && (
-            <div className="flex flex-col gap-4">
-              {(step.content as any[]).map((item: any, i: number) => (
-                <div key={i} className="bg-white rounded-3xl p-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-2xl font-bold text-[#111111]">{item.phrase}</p>
-                    <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">#{i + 1}</span>
-                  </div>
-                  <p className="text-gray-500 mb-2">{item.translation}</p>
-                  <p className="text-blue-500 text-sm font-medium">🔊 {item.pronunciation}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* OBSERVE STEP */}
-          {step.type === 'observe' && (
-            <div className="flex flex-col gap-4">
-              <div className="bg-white rounded-3xl p-6 shadow-sm">
-                <div className="flex flex-col gap-3">
-                  {(step.content as any).dialogue.map((line: any, i: number) => (
-                    <div key={i} className={`flex gap-3 ${line.speaker === 'You' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                        line.speaker === 'You' ? 'bg-green-700 text-white' : 'bg-gray-200 text-gray-600'
-                      }`}>
-                        {line.speaker === 'You' ? 'Y' : 'B'}
-                      </div>
-                      <div className={`rounded-2xl px-4 py-2.5 max-w-xs ${
-                        line.speaker === 'You'
-                          ? 'bg-[#111111] text-white rounded-tr-sm'
-                          : 'bg-gray-100 text-[#111111] rounded-tl-sm'
-                      }`}>
-                        <p className="text-sm">{line.line}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-blue-50 border border-blue-100 rounded-3xl p-5">
-                <p className="text-blue-700 text-sm leading-relaxed">
-                  💡 {(step.content as any).insight}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* QUIZ STEP */}
-          {step.type === 'quiz' && (
-            <div className="flex flex-col gap-4">
-              <div className="bg-white rounded-3xl p-6 shadow-sm text-center mb-2">
-                <p className="text-[#111111] font-semibold text-lg">{(step.content as any).question}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {(step.content as any).options.map((option: any, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setSelectedAnswer(i)
-                      setShowAnswer(true)
-                    }}
-                    disabled={showAnswer}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                      showAnswer
-                        ? option.correct
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : selectedAnswer === i
-                            ? 'border-red-400 bg-red-50 text-red-600'
-                            : 'border-gray-200 bg-white text-gray-400'
-                        : 'border-gray-200 bg-white text-[#111111] hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="text-sm font-medium">{option.text}</p>
-                    {showAnswer && option.correct && <p className="text-xs mt-1 text-green-600">✓ Correct!</p>}
-                    {showAnswer && !option.correct && selectedAnswer === i && <p className="text-xs mt-1 text-red-500">✗ Not quite</p>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* PRODUCE STEP */}
-          {step.type === 'produce' && (
-            <div className="flex flex-col gap-4">
-              <div className="bg-white rounded-3xl p-6 shadow-sm">
-                <p className="text-[#111111] font-semibold mb-2">Your challenge:</p>
-                <p className="text-gray-600 leading-relaxed">{(step.content as any).prompt}</p>
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-5">
-                <p className="text-yellow-700 text-sm">💡 Hint: {(step.content as any).hint}</p>
-              </div>
-              {!showExample ? (
-                <button
-                  onClick={() => setShowExample(true)}
-                  className="w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm hover:border-gray-300 transition-colors"
-                >
-                  Show me an example answer
-                </button>
-              ) : (
-                <div className="bg-green-50 border border-green-200 rounded-3xl p-5">
-                  <p className="text-green-700 text-sm font-medium mb-1">Example answer:</p>
-                  <p className="text-green-800">{(step.content as any).example}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* COMPLETE STEP */}
-          {step.type === 'complete' && (
-            <div className="flex flex-col gap-4 text-center">
-              <div className="text-6xl mb-2">🎉</div>
-              <div className="bg-white rounded-3xl p-6 shadow-sm">
-                <p className="text-[#111111] leading-relaxed mb-4">{(step.content as any).summary}</p>
-                <div className="flex flex-wrap gap-2 justify-center mb-4">
-                  {(step.content as any).learned.map((item: string) => (
-                    <span key={item} className="bg-green-100 text-green-700 text-xs px-3 py-1.5 rounded-full font-medium">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 inline-block">
-                  <p className="text-yellow-700 font-bold">+{(step.content as any).xp} XP earned</p>
-                </div>
-              </div>
-              <div className="bg-[#111111] rounded-3xl p-5">
-                <p className="text-white text-sm leading-relaxed">{(step.content as any).nextHook}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Next Button */}
-          <div className="mt-8">
-            {step.type === 'quiz' && !showAnswer ? (
-              <p className="text-center text-gray-400 text-sm">Select an answer to continue</p>
-            ) : step.type === 'complete' ? (
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="w-full py-4 rounded-2xl bg-green-600 text-white font-bold text-base hover:bg-green-500 transition-colors"
-              >
-                Back to dashboard →
-              </button>
-            ) : (
-              <button
-                onClick={handleNext}
-                className="w-full py-4 rounded-2xl bg-[#111111] text-white font-bold text-base hover:bg-[#222222] transition-colors"
-              >
-                Continue →
-              </button>
-            )}
-          </div>
-
-        </div>
+      {/* Input */}
+      <div style={{
+        padding: '16px 20px',
+        borderTop: '1px solid #1a0000',
+        display: 'flex',
+        gap: '10px',
+        background: '#080000',
+        flexShrink: 0,
+      }}>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && send()}
+          placeholder="WHAT DO YOU NEED TO SAY?"
+          disabled={loading}
+          style={{
+            flex: 1,
+            background: '#0a0000',
+            border: '1px solid #1a0000',
+            borderRadius: '2px',
+            padding: '14px 18px',
+            color: '#ff6b6b',
+            fontSize: '13px',
+            letterSpacing: '1.5px',
+            fontFamily: '"Courier New", Courier, monospace',
+            textTransform: 'uppercase',
+          }}
+        />
+        <button
+          className="send-btn"
+          onClick={() => send()}
+          disabled={loading || !input.trim()}
+          style={{
+            background: loading || !input.trim() ? '#1a0000' : '#ff3b3b',
+            color: loading || !input.trim() ? '#330000' : '#fff',
+            borderRadius: '2px',
+            padding: '14px 24px',
+            fontWeight: '900',
+            fontSize: '13px',
+            letterSpacing: '2px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {loading ? '...' : 'SEND'}
+        </button>
       </div>
-    </main>
+    </div>
   )
 }
