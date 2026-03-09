@@ -5,14 +5,12 @@ import { getDailyMission } from '@/lib/curriculum'
 import { getCurrentMission } from '@/lib/data/missions'
 import { NextResponse } from 'next/server'
 
-// ─── Model Router ─────────────────────────────────────────────────────────────
 const MODEL_MAP: Record<string, string> = {
   tutor: 'gpt-4o',
   mission: 'gpt-4o-mini',
   panic: 'gpt-4o-mini',
 }
 
-// ─── Mission evaluation tool (function calling) ───────────────────────────────
 const MISSION_EVAL_TOOL: OpenAI.Chat.ChatCompletionTool = {
   type: 'function',
   function: {
@@ -23,7 +21,7 @@ const MISSION_EVAL_TOOL: OpenAI.Chat.ChatCompletionTool = {
       properties: {
         confidence_score: {
           type: 'number',
-          description: 'Score from 0 to 100 representing how well the user performed. 0 = completely failed, 100 = perfect.',
+          description: 'Score from 0 to 100. 0 = completely failed, 100 = perfect.',
         },
         mission_passed: {
           type: 'boolean',
@@ -31,12 +29,18 @@ const MISSION_EVAL_TOOL: OpenAI.Chat.ChatCompletionTool = {
         },
         feedback: {
           type: 'string',
-          description: 'One short sentence of encouragement or constructive feedback for the user.',
+          description: 'One short sentence of encouragement or constructive feedback.',
         },
       },
       required: ['confidence_score', 'mission_passed', 'feedback'],
     },
   },
+}
+
+type EvalResult = {
+  confidence_score: number
+  mission_passed: boolean
+  feedback: string
 }
 
 export async function POST(req: Request) {
@@ -49,7 +53,6 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // ─── User profile ─────────────────────────────────────────────────────────
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -64,11 +67,10 @@ export async function POST(req: Request) {
     if (mode === 'mission') {
       const day = missionDay || Math.max(1, (profile?.mission_day || 1))
       const mission = getCurrentMission(day)
-
-      const userMessageCount = messages.filter((m: any) => m.role === 'user').length
+      const userMessageCount = messages.filter((m: { role: string }) => m.role === 'user').length
       const shouldEvaluate = userMessageCount >= 4
+      const encoder = new TextEncoder()
 
-      // ── Step 1: Check if AI wants to call evaluate_mission ──────────────────
       if (shouldEvaluate) {
         const evalMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
           {
@@ -82,7 +84,6 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
           ...messages,
         ]
 
-        // Non-streaming eval call to check for tool use
         const evalResponse = await openai.chat.completions.create({
           model,
           messages: evalMessages,
@@ -94,21 +95,19 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
 
         const choice = evalResponse.choices[0]
 
-        // ── Tool was called → mission evaluation ──────────────────────────────
-        if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
-          const toolCall = choice.message.tool_calls[0]
-          let evalResult = { confidence_score: 0, mission_passed: false, feedback: '' }
+        if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls?.length) {
+          // ── Cast to the concrete tool call type that has .function ──────────
+          const toolCall = choice.message.tool_calls[0] as OpenAI.Chat.ChatCompletionMessageToolCall
 
+          let evalResult: EvalResult = { confidence_score: 0, mission_passed: false, feedback: '' }
           try {
-            evalResult = JSON.parse(toolCall.function.arguments)
+            evalResult = JSON.parse(toolCall.function.arguments) as EvalResult
           } catch {
             // parse failed — treat as not passed
           }
 
-          // Save to Supabase if passed
           if (evalResult.mission_passed) {
             try {
-              // Save session record
               await supabase.from('sessions').insert({
                 user_id: userId,
                 messages,
@@ -124,17 +123,15 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
                 summary: `Mission ${day}: ${mission.title} — passed with ${evalResult.confidence_score}/100`,
               })
 
-              // Advance user's mission day
               await supabase
                 .from('profiles')
                 .update({ mission_day: day + 1 })
                 .eq('user_id', userId)
             } catch {
-              // DB write failed — still send confetti to user
+              // DB write failed — still send confetti
             }
           }
 
-          // Now get the actual chat reply from the AI (after the tool call)
           const followUpMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
             ...evalMessages,
             choice.message,
@@ -153,22 +150,13 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
             temperature: 0.7,
           })
 
-          const encoder = new TextEncoder()
-          let missionPassedSignalSent = false
-
           const readable = new ReadableStream({
             async start(controller) {
-              // If mission passed, send a special signal FIRST
-              // Frontend watches for this exact string to trigger confetti
-              if (evalResult.mission_passed && !missionPassedSignalSent) {
-                controller.enqueue(encoder.encode(`MISSION_PASSED:${JSON.stringify({
-                  score: evalResult.confidence_score,
-                  feedback: evalResult.feedback,
-                  day,
-                })}\n`))
-                missionPassedSignalSent = true
+              if (evalResult.mission_passed) {
+                controller.enqueue(encoder.encode(
+                  `MISSION_PASSED:${JSON.stringify({ score: evalResult.confidence_score, feedback: evalResult.feedback, day })}\n`
+                ))
               }
-
               for await (const chunk of replyStream) {
                 const text = chunk.choices[0]?.delta?.content || ''
                 if (text) controller.enqueue(encoder.encode(text))
@@ -177,27 +165,21 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
             },
           })
 
-          return new Response(readable, {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-          })
+          return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
         }
 
-        // ── No tool call → just stream the reply ──────────────────────────────
-        // (AI decided not to evaluate yet — stream the existing response text)
+        // No tool call — stream the existing reply text
         const replyText = choice.message.content || ''
-        const encoder = new TextEncoder()
         const readable = new ReadableStream({
           start(controller) {
             controller.enqueue(encoder.encode(replyText))
             controller.close()
           },
         })
-        return new Response(readable, {
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        })
+        return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
       }
 
-      // ── Under 4 messages → just stream normally with mission system prompt ──
+      // Under 4 messages — stream normally
       const stream = await openai.chat.completions.create({
         model,
         messages: [
@@ -209,7 +191,6 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
         temperature: 0.7,
       })
 
-      const encoder = new TextEncoder()
       const readable = new ReadableStream({
         async start(controller) {
           for await (const chunk of stream) {
@@ -220,15 +201,12 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
         },
       })
 
-      return new Response(readable, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      })
+      return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // TUTOR MODE (default) — unchanged from previous version
+    // TUTOR MODE
     // ══════════════════════════════════════════════════════════════════════════
-
     let sessionCount = 0
     try {
       const { count } = await supabase
@@ -238,7 +216,6 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
       sessionCount = count || 0
     } catch { sessionCount = 0 }
 
-    // Memory: last 3 sessions
     let memoryContext = ''
     try {
       const { data: recentSessions } = await supabase
@@ -248,15 +225,15 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
         .order('created_at', { ascending: false })
         .limit(3)
 
-      if (recentSessions && recentSessions.length > 0) {
+      if (recentSessions?.length) {
         const struggles: string[] = []
         const summaries: string[] = []
         recentSessions.forEach((s: any) => {
           if (s.confidence_scores?.struggles) struggles.push(...s.confidence_scores.struggles)
           if (s.summary) summaries.push(s.summary)
         })
-        if (struggles.length > 0) memoryContext += `\nRecent struggles: ${[...new Set(struggles)].slice(0, 5).join(', ')}.`
-        if (summaries.length > 0) memoryContext += `\nLast session: ${summaries[0]}`
+        if (struggles.length) memoryContext += `\nRecent struggles: ${[...new Set(struggles)].slice(0, 5).join(', ')}.`
+        if (summaries.length) memoryContext += `\nLast session: ${summaries[0]}`
       }
     } catch { /* memory is enhancement only */ }
 
@@ -276,12 +253,11 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
       dailyMission: mission,
     }) + memoryContext
 
-    const userMessageCount = messages.filter((m: any) => m.role === 'user').length
+    const userMessageCount = messages.filter((m: { role: string }) => m.role === 'user').length
     const shouldScore = mode === 'tutor' && userMessageCount >= 4
 
     const scoringInstruction = shouldScore
-      ? `\n\nAfter your response, on a new line add exactly this JSON (no markdown):
-SCORE:{"fluency":0-10,"accuracy":0-10,"vocabulary":0-10,"struggles":["..."],"summary":"one sentence"}`
+      ? `\n\nAfter your response, on a new line add exactly this JSON (no markdown):\nSCORE:{"fluency":0-10,"accuracy":0-10,"vocabulary":0-10,"struggles":["..."],"summary":"one sentence"}`
       : ''
 
     const stream = await openai.chat.completions.create({
@@ -324,9 +300,7 @@ SCORE:{"fluency":0-10,"accuracy":0-10,"vocabulary":0-10,"struggles":["..."],"sum
       },
     })
 
-    return new Response(readable, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
+    return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 
   } catch (error) {
     console.error('Chat API error:', error)
