@@ -37,12 +37,6 @@ const MISSION_EVAL_TOOL: OpenAI.Chat.ChatCompletionTool = {
   },
 }
 
-type EvalResult = {
-  confidence_score: number
-  mission_passed: boolean
-  feedback: string
-}
-
 export async function POST(req: Request) {
   try {
     const { messages, userId, mode = 'tutor', missionDay } = await req.json()
@@ -67,7 +61,7 @@ export async function POST(req: Request) {
     if (mode === 'mission') {
       const day = missionDay || Math.max(1, (profile?.mission_day || 1))
       const mission = getCurrentMission(day)
-      const userMessageCount = messages.filter((m: { role: string }) => m.role === 'user').length
+      const userMessageCount = messages.filter((m: any) => m.role === 'user').length
       const shouldEvaluate = userMessageCount >= 4
       const encoder = new TextEncoder()
 
@@ -96,12 +90,12 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
         const choice = evalResponse.choices[0]
 
         if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls?.length) {
-          // ── Cast to the concrete tool call type that has .function ──────────
-          const toolCall = choice.message.tool_calls[0] as OpenAI.Chat.ChatCompletionMessageToolCall
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const toolCall = choice.message.tool_calls[0] as any
 
-          let evalResult: EvalResult = { confidence_score: 0, mission_passed: false, feedback: '' }
+          let evalResult = { confidence_score: 0, mission_passed: false, feedback: '' }
           try {
-            evalResult = JSON.parse(toolCall.function.arguments) as EvalResult
+            evalResult = JSON.parse(toolCall.function.arguments)
           } catch {
             // parse failed — treat as not passed
           }
@@ -122,7 +116,6 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
                 },
                 summary: `Mission ${day}: ${mission.title} — passed with ${evalResult.confidence_score}/100`,
               })
-
               await supabase
                 .from('profiles')
                 .update({ mission_day: day + 1 })
@@ -154,7 +147,11 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
             async start(controller) {
               if (evalResult.mission_passed) {
                 controller.enqueue(encoder.encode(
-                  `MISSION_PASSED:${JSON.stringify({ score: evalResult.confidence_score, feedback: evalResult.feedback, day })}\n`
+                  `MISSION_PASSED:${JSON.stringify({
+                    score: evalResult.confidence_score,
+                    feedback: evalResult.feedback,
+                    day,
+                  })}\n`
                 ))
               }
               for await (const chunk of replyStream) {
@@ -168,7 +165,7 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
           return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
         }
 
-        // No tool call — stream the existing reply text
+        // No tool call — stream existing reply text
         const replyText = choice.message.content || ''
         const readable = new ReadableStream({
           start(controller) {
@@ -179,7 +176,7 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
         return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
       }
 
-      // Under 4 messages — stream normally
+      // Under 4 messages — stream normally with mission system prompt
       const stream = await openai.chat.completions.create({
         model,
         messages: [
@@ -253,7 +250,7 @@ You are also equipped with the evaluate_mission tool. After every assistant mess
       dailyMission: mission,
     }) + memoryContext
 
-    const userMessageCount = messages.filter((m: { role: string }) => m.role === 'user').length
+    const userMessageCount = messages.filter((m: any) => m.role === 'user').length
     const shouldScore = mode === 'tutor' && userMessageCount >= 4
 
     const scoringInstruction = shouldScore
