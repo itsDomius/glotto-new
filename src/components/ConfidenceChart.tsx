@@ -7,8 +7,8 @@ import {
 import Link from 'next/link'
 
 export type ChartPoint = {
-  date: string   // formatted: "Oct 12"
-  score: number  // 0–100
+  date: string
+  score: number
 }
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -35,8 +35,13 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <div className="text-6xl mb-6">📈</div>
-      <h3 className="text-white text-xl font-black tracking-tight mb-3">Nothing here yet</h3>
-      <p className="text-[#333] text-sm leading-relaxed max-w-[280px] mb-8" style={{ fontFamily: 'DM Mono, monospace' }}>
+      <h3 className="text-white text-xl font-black tracking-tight mb-3">
+        Nothing here yet
+      </h3>
+      <p
+        className="text-[#333] text-sm leading-relaxed max-w-[280px] mb-8"
+        style={{ fontFamily: 'DM Mono, monospace' }}
+      >
         Complete your first Survival Mission to unlock your progress chart.
       </p>
       <Link
@@ -81,7 +86,10 @@ export default function ConfidenceChart({ data }: { data: ChartPoint[] }) {
           tickLine={false}
         />
 
-        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(74,222,128,.15)', strokeWidth: 1 }} />
+        <Tooltip
+          content={<CustomTooltip />}
+          cursor={{ stroke: 'rgba(74,222,128,.15)', strokeWidth: 1 }}
+        />
 
         <Area
           type="monotone"

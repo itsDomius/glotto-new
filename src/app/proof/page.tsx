@@ -1,31 +1,35 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import ConfidenceChart, { ChartPoint } from '@/components/ConfidenceChart'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Session = {
-  created_at: string
-  confidence_scores: {
-    overall?: number
-    mission_score?: number
-    fluency?: number
-    accuracy?: number
-    vocabulary?: number
-    summary?: string
-  } | null
+type ConfidenceScores = {
+  overall?: number
+  mission_score?: number
+  fluency?: number
+  accuracy?: number
+  vocabulary?: number
+  summary?: string
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({
-  label, value, accent, sub,
-}: {
-  label: string
-  value: string
-  accent: string
-  sub?: string
-}) {
+type Session = {
+  created_at: string
+  confidence_scores: ConfidenceScores | null
+}
+
+function extractScore(scores: ConfidenceScores | null): number {
+  if (!scores) return 0
+  if (typeof scores.overall === 'number') return Math.round(scores.overall)
+  if (typeof scores.mission_score === 'number') return Math.round(scores.mission_score)
+  if (typeof scores.fluency === 'number') {
+    const avg = ((scores.fluency || 0) + (scores.accuracy || 0) + (scores.vocabulary || 0)) / 3
+    return Math.min(100, Math.round(avg * 10))
+  }
+  return 0
+}
+
+function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
     <div
       className="rounded-2xl p-6"
@@ -38,25 +42,16 @@ function StatCard({
         {label}
       </p>
       <p className="text-white text-3xl font-black tracking-tighter">{value}</p>
-      {sub && (
-        <p className="mt-1 text-[11px]" style={{ color: '#333', fontFamily: 'DM Mono, monospace' }}>
-          {sub}
-        </p>
-      )}
     </div>
   )
 }
 
-// ─── Score badge ──────────────────────────────────────────────────────────────
 function ScoreBadge({ score }: { score: number }) {
   const color = score >= 75 ? '#4ade80' : score >= 50 ? '#60a5fa' : '#f97316'
   return (
     <div className="flex items-center gap-3">
       <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: '#1a1a1a' }}>
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${score}%`, background: color }}
-        />
+        <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
       </div>
       <span
         className="text-sm font-bold w-8 text-right"
@@ -68,11 +63,19 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
-// ─── Server Component ─────────────────────────────────────────────────────────
 export default async function ProofPage() {
-  const supabase = createServerComponentClient({ cookies })
+  // Use service role key for server-side data fetching
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Get user from cookie-based session
+  const cookieStore = cookies()
+  const accessToken = cookieStore.get('sb-access-token')?.value
+    ?? cookieStore.getAll().find(c => c.name.includes('auth-token'))?.value
+
+  const { data: { user } } = await supabase.auth.getUser(accessToken)
   if (!user) redirect('/auth/login')
 
   // Fetch sessions chronologically
@@ -91,28 +94,13 @@ export default async function ProofPage() {
 
   const name = profile?.full_name?.split(' ')[0] || 'Your'
 
-  // ── Extract overall score from each session ─────────────────────────────────
-  function extractScore(s: Session): number {
-    const c = s.confidence_scores
-    if (!c) return 0
-    if (typeof c.overall === 'number') return Math.round(c.overall)
-    if (typeof c.mission_score === 'number') return Math.round(c.mission_score)
-    // Tutor mode: fluency/accuracy/vocabulary (0-10) → average → 0-100
-    if (typeof c.fluency === 'number') {
-      const avg = ((c.fluency || 0) + (c.accuracy || 0) + (c.vocabulary || 0)) / 3
-      return Math.min(100, Math.round(avg * 10))
-    }
-    return 0
-  }
-
-  const chartData: ChartPoint[] = (sessions || [])
+  const chartData: ChartPoint[] = ((sessions as Session[]) || [])
     .map(s => ({
       date: new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      score: Math.max(0, extractScore(s as Session)),
+      score: Math.max(0, extractScore(s.confidence_scores)),
     }))
     .filter(p => p.score > 0)
 
-  // ── Derived stats ───────────────────────────────────────────────────────────
   const count = chartData.length
   const avg = count ? Math.round(chartData.reduce((s, p) => s + p.score, 0) / count) : 0
   const best = count ? Math.max(...chartData.map(p => p.score)) : 0
@@ -128,7 +116,7 @@ export default async function ProofPage() {
 
       <div className="max-w-3xl mx-auto px-6 py-12">
 
-        {/* ── Nav ── */}
+        {/* Nav */}
         <Link
           href="/dashboard"
           className="inline-block mb-10 text-[#252525] text-xs tracking-[2px] hover:text-[#444] transition-colors"
@@ -137,7 +125,7 @@ export default async function ProofPage() {
           ← DASHBOARD
         </Link>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="flex items-end justify-between mb-10">
           <div>
             <p
@@ -177,7 +165,7 @@ export default async function ProofPage() {
           )}
         </div>
 
-        {/* ── Stats ── */}
+        {/* Stats */}
         {count > 0 && (
           <div className="grid grid-cols-3 gap-3 mb-6">
             <StatCard label="Sessions" value={String(count)} accent="#60a5fa" />
@@ -186,7 +174,7 @@ export default async function ProofPage() {
           </div>
         )}
 
-        {/* ── Chart card ── */}
+        {/* Chart card */}
         <div
           className="rounded-2xl p-8 mb-6"
           style={{
@@ -224,7 +212,7 @@ export default async function ProofPage() {
           <ConfidenceChart data={chartData} />
         </div>
 
-        {/* ── Session history ── */}
+        {/* Session history */}
         {count > 0 && (
           <div
             className="rounded-2xl p-8"
@@ -235,8 +223,8 @@ export default async function ProofPage() {
             </h2>
             <div className="flex flex-col">
               {[...chartData].reverse().map((point, i) => {
-                const session = sessions?.[count - 1 - i]
-                const summary = (session?.confidence_scores as any)?.summary
+                const session = sessions?.[count - 1 - i] as Session | undefined
+                const summary = session?.confidence_scores?.summary
                 return (
                   <div
                     key={i}
