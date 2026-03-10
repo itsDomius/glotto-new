@@ -34,7 +34,6 @@ function MissionPageContent() {
       if (!user) { router.push('/auth/login'); return }
       setUserId(user.id)
 
-      // Check if user has paid access (subscription OR active stake)
       const { data: profile } = await supabase
         .from('profiles')
         .select('subscription_status, staked_amount')
@@ -49,7 +48,7 @@ function MissionPageContent() {
       }
     }
     init()
-  }, [])
+  }, [router])
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (!userId) return (
@@ -78,7 +77,7 @@ function MissionPageContent() {
 
       <div className="fade-up" style={{ maxWidth: '580px', width: '100%' }}>
 
-        {/* Back button */}
+        {/* Back */}
         <button
           onClick={() => router.push('/dashboard')}
           style={{ background: 'none', border: 'none', color: '#333', fontSize: '13px', cursor: 'pointer', marginBottom: '36px', padding: 0, fontFamily: '"DM Mono", monospace' }}
@@ -86,8 +85,8 @@ function MissionPageContent() {
           ← Back to dashboard
         </button>
 
-        {/* Badges row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        {/* Badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
           <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: '20px', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="pulse" style={{ display: 'inline-block', width: '6px', height: '6px', background: '#4ade80', borderRadius: '50%', flexShrink: 0 }} />
             <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>
@@ -112,7 +111,7 @@ function MissionPageContent() {
         </h1>
 
         {/* Objective */}
-        <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', marginBottom: '16px' }}>
+        <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', marginBottom: '14px' }}>
           <p style={{ color: '#444', fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', marginBottom: '10px' }}>
             Your objective
           </p>
@@ -121,16 +120,16 @@ function MissionPageContent() {
           </p>
         </div>
 
-        {/* NPC Persona — the new addition */}
-        <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '18px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '12px', background: '#111', border: '1px solid #1f1f1f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
+        {/* NPC Persona */}
+        <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '16px 18px', marginBottom: '28px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#111', border: '1px solid #1f1f1f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
             🎭
           </div>
           <div>
             <p style={{ color: '#333', fontSize: '10px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace', marginBottom: '4px' }}>
               You are talking to
             </p>
-            <p style={{ color: '#888', fontSize: '14px', lineHeight: 1.5, margin: 0 }}>
+            <p style={{ color: '#666', fontSize: '14px', lineHeight: 1.5, margin: 0 }}>
               {mission.npc_persona}
             </p>
           </div>
@@ -141,7 +140,7 @@ function MissionPageContent() {
           {[
             'Stay in character — the simulation is real',
             'Speak only in your target language',
-            'Follow the correct bureaucratic process to pass',
+            'Follow the correct process to pass — language alone is not enough',
           ].map((rule, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '20px', height: '20px', background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -152,19 +151,19 @@ function MissionPageContent() {
           ))}
         </div>
 
-        {/* If locked → show paywall CTA instead of start button */}
+        {/* Locked or Start */}
         {locked ? (
           <div>
             <div style={{ background: '#1a0a00', border: '1px solid #3a1a00', borderRadius: '14px', padding: '20px', marginBottom: '14px', textAlign: 'center' }}>
               <p style={{ color: '#fb923c', fontSize: '14px', fontWeight: '700', marginBottom: '6px' }}>🔒 Mission {mission.day} requires a plan</p>
               <p style={{ color: '#555', fontSize: '13px', lineHeight: 1.6 }}>
-                Missions 1 & 2 are free. From Day 3 onwards you need Full Access or a Commitment Stake.
+                Missions 1 & 2 are free. From Day 3 you need Full Access or a Commitment Stake.
               </p>
             </div>
             <button
               className="btn-start"
               onClick={() => router.push('/pricing')}
-              style={{ background: '#fb923c', color: '#0a0500', borderRadius: '14px', padding: '16px 36px', fontSize: '16px', fontWeight: '900', letterSpacing: '-0.4px', width: '100%', boxShadow: '0 8px 32px rgba(251,146,60,.25)' }}
+              style={{ background: '#fb923c', color: '#0a0500', borderRadius: '14px', padding: '16px 36px', fontSize: '16px', fontWeight: '900', letterSpacing: '-0.4px', width: '100%', boxShadow: '0 8px 32px rgba(251,146,60,.2)' }}
             >
               Unlock All Missions →
             </button>
@@ -174,7 +173,7 @@ function MissionPageContent() {
             <button
               className="btn-start"
               onClick={() => setStarted(true)}
-              style={{ background: '#4ade80', color: '#050f06', borderRadius: '14px', padding: '16px 36px', fontSize: '16px', fontWeight: '900', letterSpacing: '-0.4px', width: '100%', boxShadow: '0 8px 32px rgba(74,222,128,.25)' }}
+              style={{ background: '#4ade80', color: '#050f06', borderRadius: '14px', padding: '16px 36px', fontSize: '16px', fontWeight: '900', letterSpacing: '-0.4px', width: '100%', boxShadow: '0 8px 32px rgba(74,222,128,.2)' }}
             >
               Enter the Simulation →
             </button>
@@ -190,6 +189,7 @@ function MissionPageContent() {
   // ── Active mission (chat) ────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, sans-serif' }}>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }`}</style>
       <div style={{ maxWidth: '820px', margin: '0 auto', padding: '28px 24px' }}>
 
         {/* Top bar */}
@@ -208,7 +208,7 @@ function MissionPageContent() {
           </div>
         </div>
 
-        {/* Chat container */}
+        {/* Chat */}
         <div style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '20px', overflow: 'hidden', minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
           <MissionChat
             userId={userId}
@@ -217,10 +217,6 @@ function MissionPageContent() {
           />
         </div>
       </div>
-
-      <style>{`
-        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
-      `}</style>
     </div>
   )
 }
