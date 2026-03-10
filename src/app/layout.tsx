@@ -1,21 +1,25 @@
-import type { Metadata } from "next";
-import "./globals.css";
+// ════════════════════════════════════════════════════════════════════════════
+// FILE: src/app/layout.tsx
+// ════════════════════════════════════════════════════════════════════════════
+import type { Metadata } from "next"
+import "./globals.css"
+import PanicButton from "@/components/PanicButton"
 
 export const metadata: Metadata = {
-  title: "Glotto",
-  description: "Speak the life you want.",
+  title: "Glotto — Relocation OS",
+  description: "Survive your relocation. Master the bureaucracy.",
   manifest: "/manifest.json",
-};
+}
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="antialiased">
         {children}
+
+        {/* 🆘 Emergency Panic Button — visible on EVERY page */}
+        <PanicButton />
+
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -29,5 +33,5 @@ export default function RootLayout({
         />
       </body>
     </html>
-  );
+  )
 }
