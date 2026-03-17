@@ -1,24 +1,31 @@
 // ════════════════════════════════════════════════════════════════════════════
 // FILE: src/app/rehearsal/page.tsx
+// CHANGES: Added AI scaffolding — 3 suggested reply buttons, no blank page syndrome
 // ════════════════════════════════════════════════════════════════════════════
 'use client'
 import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+// ── SVG Icons (replacing emojis per spec) ────────────────────────────────────
+const IconDocument = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+  </svg>
+)
+const IconMapPin = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+  </svg>
+)
+
 type Scenario = {
-  id: string
-  title: string
-  icon: string
-  location: string
-  difficulty: string
-  diffColor: string
-  description: string
-  systemPrompt: string
-  successCriteria: string
-  documents: string[]
+  id: string; title: string; icon: string; location: string
+  difficulty: string; diffColor: string; description: string
+  systemPrompt: string; successCriteria: string; documents: string[]
 }
 
+// ── Updated system prompts: instruct LLM to return JSON with suggested_replies ──
 const SCENARIOS: Scenario[] = [
   {
     id: 'tax-office',
@@ -48,7 +55,20 @@ Roleplay behavior:
 - Speak formally. Don't rush. This is a Greek government office.
 - Add small bureaucratic details: "Queue number 47", "My colleague will call you shortly", "Please take a seat"
 
-When ALL 5 steps are completed successfully, end your message with: REHEARSAL_PASSED`,
+When ALL 5 steps are completed successfully, end your message with: REHEARSAL_PASSED
+
+CRITICAL OUTPUT FORMAT: You MUST respond with a JSON object (no markdown, no backticks):
+{
+  "ai_message": "your full response in character here",
+  "suggested_replies": [
+    "Short English phrase the user could say next (max 8 words)",
+    "Another option",
+    "Third option"
+  ],
+  "rehearsal_passed": false
+}
+Set rehearsal_passed to true ONLY when all steps are complete.
+suggested_replies must always be 3 short plain-English phrases of what the user could say or do next.`,
   },
   {
     id: 'landlord-signing',
@@ -78,7 +98,19 @@ Roleplay behavior:
 - Be friendly but vague: "Oh the standard terms, nothing unusual"
 - If they ask a good question, answer honestly but briefly
 
-When user has asked about ALL of: deposit timeline, notice period, utilities, rent increases AND summarised the terms correctly, end with: REHEARSAL_PASSED`,
+When user has asked about ALL of: deposit timeline, notice period, utilities, rent increases AND summarised the terms correctly, end with: REHEARSAL_PASSED
+
+CRITICAL OUTPUT FORMAT — JSON only, no markdown:
+{
+  "ai_message": "your full response as the landlord",
+  "suggested_replies": [
+    "Question or action the user could take (max 8 words)",
+    "Another option",
+    "Third option"
+  ],
+  "rehearsal_passed": false
+}
+suggested_replies = 3 short English phrases of what to say/ask next.`,
   },
   {
     id: 'bank-visit',
@@ -109,7 +141,18 @@ Roleplay behavior:
 - If they ask about online banking, mention the app
 - Explain: "The account will be active in 2-3 business days and your card arrives in 5-7 days"
 
-When ALL 4 documents presented, account type chosen, and fee confirmed: REHEARSAL_PASSED`,
+When ALL 4 documents presented, account type chosen, and fee confirmed: REHEARSAL_PASSED
+
+CRITICAL OUTPUT FORMAT — JSON only, no markdown:
+{
+  "ai_message": "your full response as the bank advisor",
+  "suggested_replies": [
+    "What user could say or present next (max 8 words)",
+    "Another option",
+    "Third option"
+  ],
+  "rehearsal_passed": false
+}`,
   },
   {
     id: 'doctors-visit',
@@ -143,7 +186,18 @@ Roleplay behavior:
 - Speak at a normal pace, not too fast
 - At the end: "Is there anything else I can help you with?"
 
-When all registration details gathered AND appointment confirmed: REHEARSAL_PASSED`,
+When all registration details gathered AND appointment confirmed: REHEARSAL_PASSED
+
+CRITICAL OUTPUT FORMAT — JSON only, no markdown:
+{
+  "ai_message": "your full response as the receptionist",
+  "suggested_replies": [
+    "What the user could say next (max 8 words)",
+    "Another option",
+    "Third option"
+  ],
+  "rehearsal_passed": false
+}`,
   },
 ]
 
@@ -151,9 +205,31 @@ type Message = {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  suggestions?: string[] // ← NEW: contextual reply options
 }
 
 const G = '#4ade80'
+
+// ── Parse LLM response — handles JSON or plain text fallback ─────────────────
+function parseLLMResponse(raw: string): { message: string; suggestions: string[]; passed: boolean } {
+  // Strip markdown fences
+  const clean = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+  try {
+    const parsed = JSON.parse(clean)
+    return {
+      message: parsed.ai_message || raw,
+      suggestions: Array.isArray(parsed.suggested_replies) ? parsed.suggested_replies.slice(0, 3) : [],
+      passed: parsed.rehearsal_passed === true || raw.includes('REHEARSAL_PASSED'),
+    }
+  } catch {
+    // Fallback: plain text streaming
+    return {
+      message: raw.replace('REHEARSAL_PASSED', '').trim(),
+      suggestions: [],
+      passed: raw.includes('REHEARSAL_PASSED'),
+    }
+  }
+}
 
 export default function RehearsalPage() {
   const router = useRouter()
@@ -164,6 +240,7 @@ export default function RehearsalPage() {
   const [passed, setPassed] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [confidence, setConfidence] = useState(0)
+  const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]) // ← NEW
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -181,6 +258,7 @@ export default function RehearsalPage() {
     setSelectedScenario(scenario)
     setPassed(false)
     setConfidence(0)
+    setSuggestedReplies([]) // ← reset
     setLoading(true)
 
     const opening: Message = { role: 'assistant', content: '', timestamp: new Date() }
@@ -198,18 +276,33 @@ export default function RehearsalPage() {
         }),
       })
 
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      let full = ''
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value)
-          full += chunk
-          setMessages([{ role: 'assistant', content: full, timestamp: new Date() }])
+      // Try JSON first (new API), fallback to stream
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const data = await res.json()
+        const parsed = parseLLMResponse(JSON.stringify(data))
+        const msg = data.reply || parsed.message
+        const sugg = data.suggestions || parsed.suggestions
+        setMessages([{ role: 'assistant', content: msg, timestamp: new Date(), suggestions: sugg }])
+        setSuggestedReplies(sugg)
+      } else {
+        const reader = res.body?.getReader()
+        const decoder = new TextDecoder()
+        let full = ''
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            full += decoder.decode(value)
+            // Try to parse incrementally when we have a complete JSON object
+            const result = parseLLMResponse(full)
+            setMessages([{ role: 'assistant', content: result.message, timestamp: new Date(), suggestions: result.suggestions }])
+            if (result.suggestions.length > 0) setSuggestedReplies(result.suggestions)
+          }
         }
+        const final = parseLLMResponse(full)
+        setMessages([{ role: 'assistant', content: final.message, timestamp: new Date(), suggestions: final.suggestions }])
+        setSuggestedReplies(final.suggestions)
       }
     } catch (e) {
       console.error(e)
@@ -219,13 +312,16 @@ export default function RehearsalPage() {
     }
   }
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading || !selectedScenario) return
+  // ── Core send — accepts optional override text (from suggestion buttons) ────
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim()
+    if (!text || loading || !selectedScenario) return
 
-    const userMsg: Message = { role: 'user', content: input.trim(), timestamp: new Date() }
+    const userMsg: Message = { role: 'user', content: text, timestamp: new Date() }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
+    setSuggestedReplies([]) // ← clear while loading
     setLoading(true)
 
     const assistantMsg: Message = { role: 'assistant', content: '', timestamp: new Date() }
@@ -243,36 +339,51 @@ export default function RehearsalPage() {
         }),
       })
 
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      let full = ''
-      let msgPassed = false
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const data = await res.json()
+        const msg = data.reply || data.ai_message || ''
+        const sugg = data.suggestions || []
+        const isPassed = data.passed || msg.includes('REHEARSAL_PASSED')
+        const visibleMsg = msg.replace('REHEARSAL_PASSED', '').trim()
+        setMessages([...newMessages, { role: 'assistant', content: visibleMsg, timestamp: new Date(), suggestions: sugg }])
+        setSuggestedReplies(sugg)
+        if (isPassed) {
+          setPassed(true)
+          setConfidence(Math.floor(Math.random() * 15) + 85)
+          setSuggestedReplies([])
+        }
+      } else {
+        const reader = res.body?.getReader()
+        const decoder = new TextDecoder()
+        let full = ''
+        let msgPassed = false
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value)
-          full += chunk
-
-          if (full.includes('REHEARSAL_PASSED')) {
-            msgPassed = true
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            full += decoder.decode(value)
+            const result = parseLLMResponse(full)
+            if (result.passed) msgPassed = true
+            setMessages([...newMessages, { role: 'assistant', content: result.message, timestamp: new Date(), suggestions: result.suggestions }])
+            if (result.suggestions.length > 0) setSuggestedReplies(result.suggestions)
           }
+        }
 
-          const visible = full.replace('REHEARSAL_PASSED', '').trim()
-          setMessages([...newMessages, { role: 'assistant', content: visible, timestamp: new Date() }])
+        const final = parseLLMResponse(full)
+        setMessages([...newMessages, { role: 'assistant', content: final.message, timestamp: new Date(), suggestions: final.suggestions }])
+        setSuggestedReplies(final.suggestions)
+
+        if (msgPassed || final.passed) {
+          setPassed(true)
+          setConfidence(Math.floor(Math.random() * 15) + 85)
+          setSuggestedReplies([])
+        } else {
+          const userCount = newMessages.filter(m => m.role === 'user').length
+          setConfidence(Math.min(80, userCount * 15))
         }
       }
-
-      if (msgPassed) {
-        setPassed(true)
-        setConfidence(Math.floor(Math.random() * 15) + 85) // 85-100
-      } else {
-        // estimate progress
-        const userCount = newMessages.filter(m => m.role === 'user').length
-        setConfidence(Math.min(80, userCount * 15))
-      }
-
     } catch (e) {
       console.error(e)
     } finally {
@@ -285,12 +396,20 @@ export default function RehearsalPage() {
     setMessages([])
     setPassed(false)
     setConfidence(0)
+    setSuggestedReplies([])
   }
 
+  // ── Scenario selection screen ─────────────────────────────────────────────
   if (!selectedScenario) {
     return (
       <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: '"DM Sans", -apple-system, sans-serif' }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}.card{animation:fadeUp .3s ease both;transition:all .15s}.card:hover{border-color:#2a2a2a!important;transform:translateY(-2px)}`}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+          *{box-sizing:border-box;margin:0;padding:0}
+          @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+          .card{animation:fadeUp .3s ease both;transition:all .15s}
+          .card:hover{border-color:#2a2a2a!important;transform:translateY(-2px)}
+        `}</style>
 
         <div style={{ borderBottom: '1px solid #111', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#070707' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -323,13 +442,17 @@ export default function RehearsalPage() {
                   <span style={{ background: `${s.diffColor}15`, color: s.diffColor, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, fontFamily: '"DM Mono", monospace' }}>{s.difficulty}</span>
                 </div>
                 <h3 style={{ color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 4, letterSpacing: '-0.3px' }}>{s.title}</h3>
-                <p style={{ color: '#555', fontSize: 12, fontFamily: '"DM Mono", monospace', marginBottom: 10 }}>📍 {s.location}</p>
+                <p style={{ color: '#555', fontSize: 12, fontFamily: '"DM Mono", monospace', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <IconMapPin /> {s.location}
+                </p>
                 <p style={{ color: '#444', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>{s.description}</p>
                 <div style={{ borderTop: '1px solid #111', paddingTop: 14 }}>
                   <p style={{ color: '#333', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Mono", monospace', marginBottom: 8 }}>Bring with you</p>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {s.documents.map(d => (
-                      <span key={d} style={{ background: '#111', border: '1px solid #1a1a1a', color: '#888', fontSize: 11, padding: '3px 8px', borderRadius: 6 }}>{d}</span>
+                      <span key={d} style={{ background: '#111', border: '1px solid #1a1a1a', color: '#888', fontSize: 11, padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <IconDocument />{d}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -341,9 +464,45 @@ export default function RehearsalPage() {
     )
   }
 
+  // ── Active chat screen ────────────────────────────────────────────────────
   return (
     <div style={{ height: '100vh', background: '#070707', display: 'flex', flexDirection: 'column', fontFamily: '"DM Sans", -apple-system, sans-serif' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.msg{animation:fadeUp .2s ease both}.dot{animation:pulse 1.2s ease infinite}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}textarea:focus{outline:none}`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        @keyframes suggIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        .msg{animation:fadeUp .2s ease both}
+        .dot{animation:pulse 1.2s ease infinite}
+        .dot:nth-child(2){animation-delay:.2s}
+        .dot:nth-child(3){animation-delay:.4s}
+        textarea:focus{outline:none}
+        .sugg-btn{
+          transition:all .15s;
+          cursor:pointer;
+          font-family:'DM Sans',sans-serif;
+          border:1px solid #1a1a1a;
+          background:#0e0e0e;
+          color:#888;
+          border-radius:20px;
+          padding:7px 14px;
+          font-size:13px;
+          font-weight:600;
+          white-space:nowrap;
+          animation:suggIn .2s ease both;
+        }
+        .sugg-btn:hover{
+          border-color:#4ade80;
+          color:#fff;
+          background:#0f2a1a;
+          transform:translateY(-1px);
+        }
+        .sugg-btn:active{transform:translateY(0)}
+        .msg-scroll::-webkit-scrollbar{width:4px}
+        .msg-scroll::-webkit-scrollbar-thumb{background:#1a1a1a;border-radius:4px}
+      `}</style>
 
       {/* Chat header */}
       <div style={{ background: '#050505', borderBottom: '1px solid #0d0d0d', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -353,11 +512,12 @@ export default function RehearsalPage() {
           <span style={{ fontSize: 20 }}>{selectedScenario.icon}</span>
           <div>
             <p style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{selectedScenario.title}</p>
-            <p style={{ color: '#444', fontSize: 11, fontFamily: '"DM Mono", monospace' }}>📍 {selectedScenario.location}</p>
+            <p style={{ color: '#444', fontSize: 11, fontFamily: '"DM Mono", monospace', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <IconMapPin /> {selectedScenario.location}
+            </p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Confidence meter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: 20, padding: '6px 14px' }}>
             <span style={{ color: '#444', fontSize: 11, fontFamily: '"DM Mono", monospace' }}>Confidence</span>
             <div style={{ width: 60, height: 4, background: '#111', borderRadius: 4 }}>
@@ -372,21 +532,23 @@ export default function RehearsalPage() {
       </div>
 
       {/* Documents checklist */}
-      <div style={{ background: '#0a0a0a', borderBottom: '1px solid #0d0d0d', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, overflowX: 'auto' }}>
+      <div style={{ background: '#0a0a0a', borderBottom: '1px solid #0d0d0d', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, overflowX: 'auto' }}>
         <span style={{ color: '#333', fontSize: 11, fontFamily: '"DM Mono", monospace', flexShrink: 0 }}>BRING:</span>
         {selectedScenario.documents.map(d => (
-          <span key={d} style={{ background: '#111', border: '1px solid #1a1a1a', color: '#888', fontSize: 11, padding: '3px 10px', borderRadius: 8, flexShrink: 0 }}>📄 {d}</span>
+          <span key={d} style={{ background: '#111', border: '1px solid #1a1a1a', color: '#888', fontSize: 11, padding: '3px 10px', borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <IconDocument />{d}
+          </span>
         ))}
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 16px' }}>
+      <div className="msg-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 16px' }}>
         {passed && (
           <div style={{ background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: 16, padding: '20px 24px', marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center' }}>
             <span style={{ fontSize: 32 }}>🏅</span>
             <div>
               <p style={{ color: G, fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Confidence Badge Earned!</p>
-              <p style={{ color: '#888', fontSize: 13 }}>You successfully navigated {selectedScenario.title}. You're ready for the real thing.</p>
+              <p style={{ color: '#888', fontSize: 13 }}>You successfully navigated {selectedScenario.title}. You&apos;re ready for the real thing.</p>
             </div>
           </div>
         )}
@@ -401,7 +563,9 @@ export default function RehearsalPage() {
                 {msg.role === 'user' ? 'You' : selectedScenario.location}
               </p>
               <div style={{ background: msg.role === 'user' ? '#0f2a1a' : '#0e0e0e', border: `1px solid ${msg.role === 'user' ? '#1a3a1f' : '#1a1a1a'}`, borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px', padding: '12px 16px' }}>
-                <p style={{ color: '#ddd', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{msg.content || (loading && i === messages.length - 1 ? '' : '')}</p>
+                <p style={{ color: '#ddd', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {msg.content || (loading && i === messages.length - 1 ? '' : '')}
+                </p>
                 {loading && i === messages.length - 1 && msg.role === 'assistant' && !msg.content && (
                   <div style={{ display: 'flex', gap: 4, padding: '4px 0' }}>
                     {[0, 1, 2].map(j => (
@@ -416,34 +580,62 @@ export default function RehearsalPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* ── Input area with RPG suggestion buttons ─────────────────────────── */}
       {!passed ? (
-        <div style={{ background: '#050505', borderTop: '1px solid #0d0d0d', padding: '16px 24px', flexShrink: 0 }}>
+        <div style={{ background: '#050505', borderTop: '1px solid #0d0d0d', padding: '12px 24px 16px', flexShrink: 0 }}>
+
+          {/* ── SUGGESTED REPLY BUTTONS ── rendered ABOVE the text input */}
+          {suggestedReplies.length > 0 && !loading && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              {suggestedReplies.map((reply, i) => (
+                <button
+                  key={reply}
+                  className="sugg-btn"
+                  style={{ animationDelay: `${i * 0.06}s` }}
+                  onClick={() => sendMessage(reply)}
+                  disabled={loading}
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <textarea
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-              placeholder="Type your response... (Press Enter to send)"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+              }}
+              placeholder={suggestedReplies.length > 0 ? 'Or type your own response...' : 'Type your response... (Press Enter to send)'}
               rows={2}
               disabled={loading}
               style={{ flex: 1, background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: 14, padding: '12px 16px', color: '#fff', fontSize: 14, fontFamily: '"DM Sans", sans-serif', resize: 'none', lineHeight: 1.5 }}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
               style={{ background: loading || !input.trim() ? '#111' : G, color: loading || !input.trim() ? '#333' : '#050f06', border: 'none', borderRadius: 12, padding: '12px 20px', fontWeight: 800, fontSize: 14, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', flexShrink: 0, height: 48 }}
             >
-              {loading ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#888', animation: 'spin .6s linear infinite' }} /> : '→'}
+              {loading
+                ? <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#888', animation: 'spin .6s linear infinite' }} />
+                : '→'}
             </button>
           </div>
-          <p style={{ color: '#1a1a1a', fontSize: 11, marginTop: 8, fontFamily: '"DM Mono", monospace' }}>Shift+Enter for new line · The AI is roleplaying a strict official</p>
+          <p style={{ color: '#1a1a1a', fontSize: 11, marginTop: 8, fontFamily: '"DM Mono", monospace' }}>
+            Shift+Enter for new line · The AI is roleplaying a strict official
+          </p>
         </div>
       ) : (
         <div style={{ background: '#050505', borderTop: '1px solid #0d0d0d', padding: '16px 24px', display: 'flex', gap: 12, flexShrink: 0 }}>
-          <button onClick={exit} style={{ flex: 1, background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: 12, padding: 14, color: '#888', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>← Try Another Scenario</button>
-          <button onClick={() => router.push('/mission?day=1')} style={{ flex: 1, background: G, border: 'none', borderRadius: 12, padding: 14, color: '#050f06', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Do the Real Mission →</button>
+          <button onClick={exit} style={{ flex: 1, background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: 12, padding: 14, color: '#888', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+            ← Try Another Scenario
+          </button>
+          <button onClick={() => router.push('/mission?day=1')} style={{ flex: 1, background: G, border: 'none', borderRadius: 12, padding: 14, color: '#050f06', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Do the Real Mission →
+          </button>
         </div>
       )}
     </div>
