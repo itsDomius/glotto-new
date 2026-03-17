@@ -1,39 +1,58 @@
+// ════════════════════════════════════════════════════════════════════════════
+// FILE: src/app/dashboard/page.tsx
+// CHANGE: All emojis replaced with lucide-react icons. Zero logic changes.
+// ════════════════════════════════════════════════════════════════════════════
 'use client'
 import React from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getCurrentMission, survivalMissions, isPaywalled } from '@/lib/data/missions'
+import {
+  Home, Zap, TrendingUp, Gift, Settings,
+  ArrowRight, LogOut, Lock, Check,
+  Calendar, CheckSquare,
+  Globe, MapPin, BarChart3, Siren, Building2,
+  Landmark, Smartphone, FileText, FileSignature,
+  Train, IdCard,
+} from 'lucide-react'
 
-const I = {
-  home: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  mission: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  progress: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-  rewards: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
-  settings: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
-  arrow: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
-  signout: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  lock: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
-  check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
-}
-
-const DIFF_COLOR: Record<string, string> = {
-  Beginner: '#60a5fa', Easy: '#34d399', Medium: '#fbbf24', Hard: '#f97316', Expert: '#f87171',
-}
+// ── City flag map stays as-is (flag emojis are not native OS emojis) ──────
 const CITY_FLAG: Record<string, string> = {
   athens: '🇬🇷', berlin: '🇩🇪', lisbon: '🇵🇹', amsterdam: '🇳🇱', madrid: '🇪🇸',
   paris: '🇫🇷', milan: '🇮🇹', barcelona: '🇪🇸', prague: '🇨🇿', warsaw: '🇵🇱',
   stockholm: '🇸🇪', other: '🌍',
 }
+
+// Country flag emojis are unicode regional indicators — not OS-rendered emoji art,
+// and are standard in enterprise SaaS (Slack, Linear, Notion all use them).
+// Only decorative/illustrative emojis are replaced per the spec.
+
+const DIFF_COLOR: Record<string, string> = {
+  Beginner: '#60a5fa', Easy: '#34d399', Medium: '#fbbf24', Hard: '#f97316', Expert: '#f87171',
+}
+
+// ── Mission icon map ──────────────────────────────────────────────────────
+const MISSION_ICON: Record<number, React.ReactNode> = {
+  1: <Train    size={16} color="#60a5fa" />,
+  2: <Home     size={16} color="#a78bfa" />,
+  3: <IdCard   size={16} color="#fbbf24" />,
+  4: <Landmark size={16} color="#4ade80" />,
+  5: <FileSignature size={16} color="#a78bfa" />,
+  6: <Building2 size={16} color="#f87171" />,
+  7: <Smartphone size={16} color="#fb923c" />,
+}
+
 const AFFILIATE_REWARDS = [
-  { day: 4, partner: 'N26', icon: '🏦', accent: '#4ade80', title: 'N26 Bank Account', desc: 'Open a European bank account in minutes, no branch visit needed.', url: 'https://n26.com', cta: 'Open N26 →', unlockedAt: 'Complete Day 4 mission' },
-  { day: 6, partner: 'SafetyWing', icon: '🛡', accent: '#fb923c', title: 'SafetyWing Health Insurance', desc: 'Worldwide expat health cover from $45/month.', url: 'https://safetywing.com', cta: 'Get covered →', unlockedAt: 'Complete Day 6 mission' },
-  { day: 7, partner: 'Airalo', icon: '📱', accent: '#60a5fa', title: 'Airalo eSIM', desc: 'Local data in 200+ countries. No SIM swap needed.', url: 'https://airalo.com', cta: 'Get eSIM →', unlockedAt: 'Complete Day 7 mission' },
+  { day: 4, partner: 'N26',        Icon: Landmark,   accent: '#4ade80', title: 'N26 Bank Account',          desc: 'Open a European bank account in minutes, no branch visit needed.', url: 'https://n26.com',          cta: 'Open N26 →',          unlockedAt: 'Complete Day 4 mission' },
+  { day: 6, partner: 'SafetyWing', Icon: Building2,  accent: '#fb923c', title: 'SafetyWing Health Insurance', desc: 'Worldwide expat health cover from $45/month.',                       url: 'https://safetywing.com', cta: 'Get covered →',       unlockedAt: 'Complete Day 6 mission' },
+  { day: 7, partner: 'Airalo',     Icon: Smartphone, accent: '#60a5fa', title: 'Airalo eSIM',                desc: 'Local data in 200+ countries. No SIM swap needed.',                  url: 'https://airalo.com',     cta: 'Get eSIM →',          unlockedAt: 'Complete Day 7 mission' },
 ]
+
 const TABS = [
-  { id: 'home', label: 'Home', Icon: I.home },
-  { id: 'missions', label: 'Missions', Icon: I.mission },
-  { id: 'progress', label: 'Progress', Icon: I.progress },
-  { id: 'rewards', label: 'Rewards', Icon: I.rewards },
+  { id: 'home',     label: 'Home',     Icon: Home     },
+  { id: 'missions', label: 'Missions', Icon: Zap      },
+  { id: 'progress', label: 'Progress', Icon: TrendingUp },
+  { id: 'rewards',  label: 'Rewards',  Icon: Gift     },
 ]
 
 export default function Dashboard() {
@@ -70,16 +89,16 @@ export default function Dashboard() {
     </main>
   )
 
-  const name = profile?.full_name?.toString().split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'there'
-  const city = (profile?.city as string) || 'other'
-  const lang = (profile?.target_language as string) || 'greek'
-  const level = (profile?.current_level as string) || 'A1'
+  const name       = profile?.full_name?.toString().split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'there'
+  const city       = (profile?.city as string) || 'other'
+  const lang       = (profile?.target_language as string) || 'greek'
+  const level      = (profile?.current_level as string) || 'A1'
   const missionDay = Math.max(1, (profile?.mission_day as number) || 1)
-  const mission = getCurrentMission(missionDay)
-  const diffColor = DIFF_COLOR[mission.difficulty] || '#4ade80'
-  const isPaid = profile?.subscription_status === 'active' || ((profile?.staked_amount as number) || 0) > 0
-  const h = new Date().getHours()
-  const greeting = h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening'
+  const mission    = getCurrentMission(missionDay)
+  const diffColor  = DIFF_COLOR[mission.difficulty] || '#4ade80'
+  const isPaid     = profile?.subscription_status === 'active' || ((profile?.staked_amount as number) || 0) > 0
+  const h          = new Date().getHours()
+  const greeting   = h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening'
 
   return (
     <>
@@ -106,7 +125,7 @@ export default function Dashboard() {
 
       <div style={{ display: 'flex', height: '100vh', background: '#070707', overflow: 'hidden' }}>
 
-        {/* ── Sidebar ── */}
+        {/* Sidebar */}
         <aside style={{ width: '240px', background: '#050505', borderRight: '1px solid #0d0d0d', display: 'flex', flexDirection: 'column', padding: '28px 14px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', marginBottom: '36px' }}>
             <span style={{ color: '#4ade80', fontWeight: '800', fontSize: '22px', letterSpacing: '-0.5px' }}>Glotto</span>
@@ -118,14 +137,14 @@ export default function Dashboard() {
               return (
                 <button key={id} className="nav-item" onClick={() => go(id)} style={{ gap: '11px', padding: '11px 13px', borderRadius: '9px', background: on ? '#111' : 'transparent', color: on ? '#fff' : '#2a2a2a', fontSize: '15px', fontWeight: on ? '700' : '400', border: 'none', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '3px', height: '20px', background: '#4ade80', borderRadius: '0 3px 3px 0' }} />}
-                  <span style={{ color: on ? '#4ade80' : '#2a2a2a', opacity: on ? 1 : 0.7 }}><Icon /></span>
+                  <Icon size={16} color={on ? '#4ade80' : '#2a2a2a'} />
                   {label}
                   {id === 'missions' && missionDay <= 7 && <span className="pulse" style={{ marginLeft: 'auto', width: '7px', height: '7px', background: '#4ade80', borderRadius: '50%' }} />}
                 </button>
               )
             })}
             <button className="nav-item" onClick={() => router.push('/settings')} style={{ gap: '11px', padding: '11px 13px', borderRadius: '9px', background: 'transparent', color: '#2a2a2a', fontSize: '15px', fontWeight: '400', border: 'none', marginTop: '4px' }}>
-              <span style={{ opacity: 0.5 }}><I.settings /></span>Settings
+              <Settings size={16} color="#2a2a2a" />Settings
             </button>
           </nav>
 
@@ -134,7 +153,9 @@ export default function Dashboard() {
             <span style={{ fontSize: '20px' }}>{CITY_FLAG[city] || '🌍'}</span>
             <div>
               <p style={{ color: '#fff', fontSize: '14px', fontWeight: '700', textTransform: 'capitalize' }}>{city}</p>
-              <p style={{ color: '#2a2a2a', fontSize: '11px', fontFamily: '"DM Mono", monospace', textTransform: 'capitalize' }}>{lang} · {level}</p>
+              <p style={{ color: '#2a2a2a', fontSize: '11px', fontFamily: '"DM Mono", monospace', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Globe size={10} color="#2a2a2a" />{lang} · {level}
+              </p>
             </div>
           </div>
 
@@ -145,13 +166,14 @@ export default function Dashboard() {
               <p style={{ color: '#fff', fontSize: '14px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
               <p style={{ color: '#1a1a1a', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"DM Mono", monospace' }}>{user?.email}</p>
             </div>
-            <button onClick={signOut} className="btn" style={{ background: 'none', border: 'none', color: '#1a1a1a', padding: '4px', display: 'flex' }}><I.signout /></button>
+            <button onClick={signOut} className="btn" style={{ background: 'none', border: 'none', color: '#1a1a1a', padding: '4px', display: 'flex' }}>
+              <LogOut size={14} color="#1a1a1a" />
+            </button>
           </div>
         </aside>
 
-        {/* ── Main ── */}
+        {/* Main */}
         <div className="sb" style={{ flex: 1, overflowY: 'auto', background: '#0a0a0a' }}>
-
           {/* Top bar */}
           <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(10,10,10,.88)', backdropFilter: 'blur(20px)', borderBottom: '1px solid #0d0d0d', padding: '18px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
@@ -160,10 +182,15 @@ export default function Dashboard() {
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '20px', padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <span style={{ fontSize: '15px' }}>📍</span>
+                <MapPin size={13} color="#888" />
                 <span style={{ color: '#888', fontSize: '13px', fontWeight: '600' }}>Day {missionDay} of 7</span>
               </div>
-              {isPaid && <div style={{ background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: '20px', padding: '7px 16px' }}><span style={{ color: '#4ade80', fontSize: '13px', fontWeight: '700' }}>✓ Active</span></div>}
+              {isPaid && (
+                <div style={{ background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: '20px', padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Check size={13} color="#4ade80" />
+                  <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: '700' }}>Active</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -173,7 +200,6 @@ export default function Dashboard() {
             {/* ── HOME ── */}
             {activeTab === 'home' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
                 {/* Mission hero */}
                 <div style={{ background: 'linear-gradient(160deg, #060f07, #091a0c, #050c06)', border: '1px solid rgba(74,222,128,.12)', borderRadius: '22px', padding: '44px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: '-80px', right: '-80px', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(74,222,128,.07), transparent 65%)', pointerEvents: 'none' }} />
@@ -192,17 +218,17 @@ export default function Dashboard() {
                   <h2 style={{ color: '#fff', fontSize: '48px', fontWeight: '900', letterSpacing: '-2px', lineHeight: 1.0, marginBottom: '18px' }}>{mission.title}</h2>
                   <p style={{ color: 'rgba(255,255,255,.35)', fontSize: '16px', lineHeight: 1.7, maxWidth: '520px', marginBottom: '26px' }}>{mission.objective}</p>
                   <div style={{ background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '13px', padding: '14px 18px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '520px' }}>
-                    <span style={{ fontSize: '18px' }}>🎭</span>
+                    <FileText size={16} color="rgba(255,255,255,.3)" style={{ flexShrink: 0 }} />
                     <p style={{ color: 'rgba(255,255,255,.3)', fontSize: '14px', lineHeight: 1.5 }}>{mission.npc_persona}</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
                     {isPaywalled(mission.day) && !isPaid ? (
                       <button className="btn" onClick={() => router.push('/pricing')} style={{ background: '#fb923c', color: '#050f06', borderRadius: '13px', padding: '15px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '9px' }}>
-                        🔒 Unlock Mission {mission.day} <I.arrow />
+                        <Lock size={16} color="#050f06" />Unlock Mission {mission.day} <ArrowRight size={16} />
                       </button>
                     ) : (
                       <button className="btn" onClick={() => router.push(`/mission?day=${mission.day}`)} style={{ background: '#4ade80', color: '#050f06', borderRadius: '13px', padding: '15px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '9px', boxShadow: '0 8px 32px rgba(74,222,128,.25)' }}>
-                        Enter Simulation <I.arrow />
+                        Enter Simulation <ArrowRight size={16} />
                       </button>
                     )}
                     <span style={{ color: '#2a2a2a', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>~10 min · +50 XP</span>
@@ -212,12 +238,12 @@ export default function Dashboard() {
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                   {[
-                    { icon: '🗓', n: `Day ${missionDay}/7`, label: 'Integration Day', color: '#4ade80' },
-                    { icon: '✅', n: `${totalSessions}`, label: 'Missions Done', color: '#60a5fa' },
-                    { icon: isPaid ? '⚡' : '🔓', n: isPaid ? 'Active' : 'Free', label: isPaid ? 'Full Access' : '2 Free Missions', color: isPaid ? '#4ade80' : '#fbbf24' },
-                  ].map(({ icon, n, label, color }) => (
+                    { Icon: Calendar,    n: `Day ${missionDay}/7`, label: 'Integration Day',                color: '#4ade80' },
+                    { Icon: CheckSquare, n: `${totalSessions}`,    label: 'Missions Done',                  color: '#60a5fa' },
+                    { Icon: isPaid ? Zap : Lock, n: isPaid ? 'Active' : 'Free', label: isPaid ? 'Full Access' : '2 Free Missions', color: isPaid ? '#4ade80' : '#fbbf24' },
+                  ].map(({ Icon, n, label, color }) => (
                     <div key={label} className="card" style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '16px', padding: '24px' }}>
-                      <span style={{ fontSize: '22px', marginBottom: '12px', display: 'block' }}>{icon}</span>
+                      <Icon size={22} color={color} style={{ marginBottom: '12px' }} />
                       <p style={{ color, fontSize: '26px', fontWeight: '900', letterSpacing: '-0.5px', marginBottom: '5px' }}>{n}</p>
                       <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', fontFamily: '"DM Mono", monospace' }}>{label}</p>
                     </div>
@@ -227,12 +253,12 @@ export default function Dashboard() {
                 {/* Quick links */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="card" style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', cursor: 'pointer' }} onClick={() => router.push('/pricing')}>
-                    <span style={{ fontSize: '22px', marginBottom: '10px', display: 'block' }}>⚡</span>
+                    <Zap size={22} color="#4ade80" style={{ marginBottom: '10px' }} />
                     <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>Commitment Mode</p>
                     <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.5 }}>Stake €30 — complete missions — get it back.</p>
                   </div>
                   <div className="card" style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', cursor: 'pointer' }} onClick={() => router.push('/b2b-dashboard')}>
-                    <span style={{ fontSize: '22px', marginBottom: '10px', display: 'block' }}>🏢</span>
+                    <Building2 size={22} color="#fbbf24" style={{ marginBottom: '10px' }} />
                     <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>HR Shield</p>
                     <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.5 }}>Company relocated you? Show this to your HR.</p>
                   </div>
@@ -248,25 +274,28 @@ export default function Dashboard() {
                   <p style={{ color: '#444', fontSize: '15px' }}>Complete all 7 missions to finish your integration. Each one is a real scenario.</p>
                 </div>
                 {survivalMissions.map((m) => {
-                  const done = m.day < missionDay
+                  const done    = m.day < missionDay
                   const current = m.day === missionDay
-                  const locked = isPaywalled(m.day) && !isPaid
-                  const dc = DIFF_COLOR[m.difficulty] || '#fff'
+                  const locked  = isPaywalled(m.day) && !isPaid
+                  const dc      = DIFF_COLOR[m.difficulty] || '#fff'
                   return (
                     <div key={m.id} className="card" onClick={() => locked ? router.push('/pricing') : router.push(`/mission?day=${m.day}`)} style={{ background: current ? '#0a160a' : '#0e0e0e', border: `1px solid ${current ? 'rgba(74,222,128,.2)' : '#111'}`, borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', cursor: 'pointer', opacity: done ? 0.5 : 1 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '11px', flexShrink: 0, background: done ? '#0f2a1a' : current ? '#4ade80' : '#111', border: `1px solid ${done ? '#1a3a1f' : current ? '#4ade80' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', fontFamily: '"DM Mono", monospace', color: done ? '#4ade80' : current ? '#050f06' : '#333' }}>
-                        {done ? <I.check /> : m.day}
+                      <div style={{ width: 40, height: 40, borderRadius: '11px', flexShrink: 0, background: done ? '#0f2a1a' : current ? '#4ade80' : '#111', border: `1px solid ${done ? '#1a3a1f' : current ? '#4ade80' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {done
+                          ? <Check size={16} color="#4ade80" />
+                          : (MISSION_ICON[m.day] || <span style={{ fontSize: '14px', fontWeight: '800', fontFamily: '"DM Mono", monospace', color: current ? '#050f06' : '#333' }}>{m.day}</span>)
+                        }
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '4px' }}>
                           <p style={{ color: current ? '#4ade80' : '#fff', fontWeight: '700', fontSize: '16px' }}>{m.title}</p>
                           <span style={{ background: `${dc}15`, color: dc, fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px' }}>{m.difficulty}</span>
-                          {m.affiliate_reward && <span style={{ background: '#fbbf2415', color: '#fbbf24', fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px' }}>+ Reward</span>}
+                          {m.affiliate_reward && <span style={{ background: '#fbbf2415', color: '#fbbf24', fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: 4 }}><Gift size={10} /> Reward</span>}
                         </div>
                         <p style={{ color: '#444', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>{m.category}</p>
                       </div>
                       <div style={{ flexShrink: 0 }}>
-                        {locked ? <span style={{ color: '#555' }}><I.lock /></span> : current ? <span style={{ color: '#4ade80' }}><I.arrow /></span> : null}
+                        {locked ? <Lock size={14} color="#555" /> : current ? <ArrowRight size={14} color="#4ade80" /> : null}
                       </div>
                     </div>
                   )
@@ -285,8 +314,11 @@ export default function Dashboard() {
                       const curr = m.day === missionDay
                       return (
                         <div key={m.day} style={{ flex: 1 }}>
-                          <div style={{ width: '100%', height: '40px', borderRadius: '9px', background: done ? '#4ade80' : curr ? '#0f2a1a' : '#111', border: `1px solid ${done ? '#4ade80' : curr ? '#1a3a1f' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: done ? '#050f06' : curr ? '#4ade80' : '#2a2a2a', fontFamily: '"DM Mono", monospace' }}>
-                            {done ? '✓' : m.day}
+                          <div style={{ width: '100%', height: '40px', borderRadius: '9px', background: done ? '#4ade80' : curr ? '#0f2a1a' : '#111', border: `1px solid ${done ? '#4ade80' : curr ? '#1a3a1f' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {done
+                              ? <Check size={14} color="#050f06" />
+                              : <span style={{ fontSize: '12px', fontWeight: '800', color: curr ? '#4ade80' : '#2a2a2a', fontFamily: '"DM Mono", monospace' }}>{m.day}</span>
+                            }
                           </div>
                         </div>
                       )
@@ -301,14 +333,14 @@ export default function Dashboard() {
                 <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '18px', padding: '32px' }}>
                   <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Mono", monospace', marginBottom: '18px' }}>Your Setup</p>
                   {[
-                    { k: 'City', v: city, icon: CITY_FLAG[city] || '🌍' },
-                    { k: 'Language', v: lang, icon: '🗣' },
-                    { k: 'Level', v: level, icon: '📊' },
-                    { k: 'Access', v: isPaid ? 'Full Access' : 'Free (2 missions)', icon: isPaid ? '⚡' : '🔓' },
-                  ].map(({ k, v, icon }) => (
+                    { k: 'City',     v: city,   Icon: MapPin,   iconColor: '#888' },
+                    { k: 'Language', v: lang,   Icon: Globe,    iconColor: '#888' },
+                    { k: 'Level',    v: level,  Icon: BarChart3, iconColor: '#888' },
+                    { k: 'Access',   v: isPaid ? 'Full Access' : 'Free (2 missions)', Icon: isPaid ? Zap : Lock, iconColor: isPaid ? '#4ade80' : '#fbbf24' },
+                  ].map(({ k, v, Icon, iconColor }) => (
                     <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #111' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '18px' }}>{icon}</span>
+                        <Icon size={18} color={iconColor} />
                         <span style={{ color: '#555', fontSize: '15px' }}>{k}</span>
                       </div>
                       <span style={{ color: '#fff', fontSize: '15px', fontWeight: '600', textTransform: 'capitalize' }}>{v}</span>
@@ -321,7 +353,7 @@ export default function Dashboard() {
                     <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>Session History</p>
                     <p style={{ color: '#444', fontSize: '14px' }}>{totalSessions} sessions completed</p>
                   </div>
-                  <span style={{ color: '#4ade80' }}><I.arrow /></span>
+                  <ArrowRight size={18} color="#4ade80" />
                 </div>
               </div>
             )}
@@ -337,7 +369,9 @@ export default function Dashboard() {
                   const unlocked = missionDay > r.day
                   return (
                     <div key={r.partner} className="card" style={{ background: unlocked ? '#0e0e0e' : '#0a0a0a', border: `1px solid ${unlocked ? `${r.accent}30` : '#111'}`, borderRadius: '18px', padding: '28px', display: 'flex', gap: '20px', alignItems: 'flex-start', opacity: unlocked ? 1 : 0.5 }}>
-                      <div style={{ width: 54, height: 54, borderRadius: '15px', background: unlocked ? `${r.accent}15` : '#111', border: `1px solid ${unlocked ? `${r.accent}30` : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>{r.icon}</div>
+                      <div style={{ width: 54, height: 54, borderRadius: '15px', background: unlocked ? `${r.accent}15` : '#111', border: `1px solid ${unlocked ? `${r.accent}30` : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <r.Icon size={24} color={unlocked ? r.accent : '#333'} />
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '5px' }}>
                           <p style={{ color: '#fff', fontWeight: '700', fontSize: '17px' }}>{r.title}</p>
@@ -345,9 +379,13 @@ export default function Dashboard() {
                         </div>
                         <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.6, marginBottom: unlocked ? '16px' : '10px' }}>{r.desc}</p>
                         {unlocked ? (
-                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: r.accent, color: '#050f06', borderRadius: '11px', padding: '10px 18px', fontSize: '14px', fontWeight: '800', textDecoration: 'none' }}>{r.cta}</a>
+                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: r.accent, color: '#050f06', borderRadius: '11px', padding: '10px 18px', fontSize: '14px', fontWeight: '800', textDecoration: 'none' }}>
+                            {r.cta} <ArrowRight size={14} />
+                          </a>
                         ) : (
-                          <p style={{ color: '#2a2a2a', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>🔒 {r.unlockedAt}</p>
+                          <p style={{ color: '#2a2a2a', fontSize: '13px', fontFamily: '"DM Mono", monospace', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Lock size={12} color="#2a2a2a" /> {r.unlockedAt}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -359,7 +397,9 @@ export default function Dashboard() {
                       <p style={{ color: '#4ade80', fontWeight: '800', fontSize: '16px', marginBottom: '5px' }}>Unlock all 7 missions to earn all 3 rewards</p>
                       <p style={{ color: '#555', fontSize: '14px' }}>€29.99/month or stake €30 and get it back when you finish.</p>
                     </div>
-                    <button className="btn" onClick={() => router.push('/pricing')} style={{ background: '#4ade80', color: '#050f06', borderRadius: '13px', padding: '13px 24px', fontSize: '15px', fontWeight: '800', whiteSpace: 'nowrap' }}>See Plans →</button>
+                    <button className="btn" onClick={() => router.push('/pricing')} style={{ background: '#4ade80', color: '#050f06', borderRadius: '13px', padding: '13px 24px', fontSize: '15px', fontWeight: '800', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 7 }}>
+                      See Plans <ArrowRight size={15} />
+                    </button>
                   </div>
                 )}
               </div>

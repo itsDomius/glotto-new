@@ -1,17 +1,25 @@
 // ════════════════════════════════════════════════════════════════════════════
 // FILE: src/app/pricing/page.tsx
+// CHANGE: All emojis replaced with lucide-react icons. Zero logic changes.
 // ════════════════════════════════════════════════════════════════════════════
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import {
+  Zap,
+  Brain,
+  ShieldCheck,
+  Check,
+  X,
+} from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-const G = '#4ade80'
+const G  = '#4ade80'
 const GD = '#0f2a1a'
 const GB = '#1a3a1f'
 
@@ -25,14 +33,11 @@ export default function PricingPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/signup?plan=pro'); return }
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: 'pro', billing: 'monthly', userId: user.id, email: user.email }),
-      })
+      const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: 'pro', billing: 'monthly', userId: user.id, email: user.email }) })
       const data = await res.json()
       if (data.url) window.location.href = data.url
-    } catch (e) { console.error(e) } finally { setLoadingPlan(null) }
+    } catch (e) { console.error(e) }
+    finally { setLoadingPlan(null) }
   }
 
   const handleStake = async () => {
@@ -40,15 +45,11 @@ export default function PricingPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/signup?plan=stake'); return }
-      const res = await fetch('/api/stripe/stake', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, action: 'create' }),
-      })
+      const res = await fetch('/api/stripe/stake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, action: 'create' }) })
       const { client_secret } = await res.json()
-      // Redirect to stake confirmation page
       window.location.href = `/stake?client_secret=${client_secret}`
-    } catch (e) { console.error(e) } finally { setLoadingPlan(null) }
+    } catch (e) { console.error(e) }
+    finally { setLoadingPlan(null) }
   }
 
   return (
@@ -72,33 +73,28 @@ export default function PricingPage() {
       </nav>
 
       <div style={{ maxWidth: '880px', margin: '0 auto', padding: '80px 24px', animation: 'fadeUp 0.5s ease both' }}>
-
-        {/* Hero text */}
+        {/* Hero */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: GD, border: `1px solid ${GB}`, borderRadius: '100px', padding: '6px 16px', fontSize: '12px', color: G, fontWeight: '700', marginBottom: '24px', letterSpacing: '0.08em' }}>
-            ⚡ TWO WAYS TO COMMIT
+            <Zap size={13} />
+            TWO WAYS TO COMMIT
           </div>
           <h1 style={{ fontFamily: '"DM Serif Display", serif', fontSize: 'clamp(38px, 6vw, 64px)', lineHeight: 1.05, letterSpacing: '-0.03em', marginBottom: '16px' }}>
-            Most apps take your money<br />and hope you don't quit.
+            Most apps take your money<br />and hope you don&apos;t quit.
           </h1>
           <p style={{ color: '#555', fontSize: '17px', maxWidth: '500px', margin: '0 auto', lineHeight: 1.7 }}>
-            We built a system that puts <strong style={{ color: '#888' }}>skin in the game</strong> — yours and ours.
-            Complete the missions, get your money back.
+            We built a system that puts <strong style={{ color: '#888' }}>skin in the game</strong> — yours and ours. Complete the missions, get your money back.
           </p>
         </div>
 
         {/* Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '56px' }}>
 
-          {/* ── Standard subscription ── */}
+          {/* Standard */}
           <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '20px', padding: '32px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'inline-block', background: '#60a5fa15', border: '1px solid #60a5fa30', borderRadius: '8px', padding: '4px 12px', fontSize: '11px', fontWeight: '700', color: '#60a5fa', marginBottom: '16px', letterSpacing: '0.08em', width: 'fit-content' }}>
-              STANDARD
-            </div>
+            <div style={{ display: 'inline-block', background: '#60a5fa15', border: '1px solid #60a5fa30', borderRadius: '8px', padding: '4px 12px', fontSize: '11px', fontWeight: '700', color: '#60a5fa', marginBottom: '16px', letterSpacing: '0.08em', width: 'fit-content' }}>STANDARD</div>
             <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '6px', letterSpacing: '-0.02em' }}>Monthly Access</h2>
-            <p style={{ color: '#555', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px', flex: 1 }}>
-              Unlimited missions, emergency button, and confidence tracker. No commitment.
-            </p>
+            <p style={{ color: '#555', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px', flex: 1 }}>Unlimited missions, emergency button, and confidence tracker. No commitment.</p>
             <div style={{ marginBottom: '24px' }}>
               <span style={{ fontSize: '46px', fontWeight: '800', lineHeight: 1 }}>€29.99</span>
               <span style={{ color: '#444', fontSize: '14px' }}> /month</span>
@@ -106,36 +102,28 @@ export default function PricingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
               {['All 7 Survival Missions', 'Emergency Panic Button', 'Confidence Tracker', 'Affiliate rewards', 'Cancel anytime'].map(f => (
                 <div key={f} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span style={{ color: '#60a5fa', fontSize: '13px' }}>✓</span>
+                  <Check size={14} color="#60a5fa" style={{ flexShrink: 0 }} />
                   <span style={{ color: '#888', fontSize: '14px' }}>{f}</span>
                 </div>
               ))}
             </div>
-            <button
-              onClick={handleSubscribe}
-              disabled={loadingPlan === 'subscribe'}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: '2px solid #60a5fa', color: '#60a5fa', borderRadius: '12px', fontSize: '15px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', opacity: loadingPlan === 'subscribe' ? 0.6 : 1 }}
-            >
+            <button onClick={handleSubscribe} disabled={loadingPlan === 'subscribe'} style={{ width: '100%', padding: '14px', background: 'transparent', border: '2px solid #60a5fa', color: '#60a5fa', borderRadius: '12px', fontSize: '15px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', opacity: loadingPlan === 'subscribe' ? 0.6 : 1 }}>
               {loadingPlan === 'subscribe' ? 'Redirecting...' : 'Subscribe →'}
             </button>
           </div>
 
-          {/* ── Stake (the star) ── */}
+          {/* Stake */}
           <div style={{ background: GD, border: `2px solid ${G}`, borderRadius: '20px', padding: '32px', display: 'flex', flexDirection: 'column', position: 'relative', animation: 'glow 3s ease infinite' }}>
-            {/* Top badge */}
-            <div style={{ position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)', background: G, color: '#050f06', fontSize: '11px', fontWeight: '800', padding: '4px 16px', borderRadius: '100px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-              ⚡ MOST RESULTS
+            <div style={{ position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)', background: G, color: '#050f06', fontSize: '11px', fontWeight: '800', padding: '4px 16px', borderRadius: '100px', letterSpacing: '0.06em', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Zap size={11} />MOST RESULTS
             </div>
-
-            <div style={{ display: 'inline-block', background: `${G}18`, border: `1px solid ${G}40`, borderRadius: '8px', padding: '4px 12px', fontSize: '11px', fontWeight: '700', color: G, marginBottom: '16px', letterSpacing: '0.08em', width: 'fit-content' }}>
-              LEARNING ESCROW
-            </div>
+            <div style={{ display: 'inline-block', background: `${G}18`, border: `1px solid ${G}40`, borderRadius: '8px', padding: '4px 12px', fontSize: '11px', fontWeight: '700', color: G, marginBottom: '16px', letterSpacing: '0.08em', width: 'fit-content' }}>LEARNING ESCROW</div>
             <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '6px', letterSpacing: '-0.02em' }}>Stake & Get Back</h2>
             <p style={{ color: '#888', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
               <strong style={{ color: '#fff' }}>Put €30 in escrow.</strong> Complete 5 Survival Missions in 7 days — we return your €30. Fail, we keep it.
             </p>
 
-            {/* How it works box */}
+            {/* Escrow box */}
             <div style={{ background: '#0a1a0a', border: `1px solid ${GB}`, borderRadius: '14px', padding: '16px', marginBottom: '20px' }}>
               <p style={{ color: G, fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px', fontFamily: 'DM Mono, monospace' }}>How escrow works</p>
               {[
@@ -146,7 +134,7 @@ export default function PricingPage() {
               ].map(({ step, text, ok }) => (
                 <div key={step} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <span style={{ background: ok ? '#0f2a1a' : '#2a0a0a', border: `1px solid ${ok ? G : '#f87171'}40`, borderRadius: '6px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800', color: ok ? G : '#f87171', flexShrink: 0 }}>
-                    {step}
+                    {step === '✕' ? <X size={10} color="#f87171" /> : step}
                   </span>
                   <span style={{ color: ok ? '#888' : '#f87171', fontSize: '13px', lineHeight: 1.5 }}>{text}</span>
                 </div>
@@ -154,36 +142,26 @@ export default function PricingPage() {
             </div>
 
             {/* Brain note */}
-            <div style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '10px', padding: '12px 14px', marginBottom: '24px', display: 'flex', gap: '10px' }}>
-              <span style={{ fontSize: '16px', flexShrink: 0 }}>🧠</span>
+            <div style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '10px', padding: '12px 14px', marginBottom: '24px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <Brain size={16} color="#555" style={{ flexShrink: 0, marginTop: '2px' }} />
               <p style={{ color: '#444', fontSize: '12px', lineHeight: 1.6 }}>
                 <strong style={{ color: '#555' }}>Loss aversion:</strong> People work 3× harder to avoid losing €30 than to gain it. Stakers complete 90% of missions. Standard: 23%.
               </p>
             </div>
 
             {!stakeConfirm ? (
-              <button
-                onClick={() => setStakeConfirm(true)}
-                style={{ width: '100%', padding: '16px', background: G, color: '#050f06', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                Stake €30 & Unlock All Missions →
+              <button onClick={() => setStakeConfirm(true)} style={{ width: '100%', padding: '16px', background: G, color: '#050f06', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Stake €30 &amp; Unlock All Missions →
               </button>
             ) : (
               <div>
                 <p style={{ color: '#fff', fontSize: '13px', fontWeight: '600', textAlign: 'center', marginBottom: '12px', lineHeight: 1.5 }}>
                   Confirm: €30 held in escrow until you complete 5 missions in 7 days.
                 </p>
-                <button
-                  onClick={handleStake}
-                  disabled={loadingPlan === 'stake'}
-                  style={{ width: '100%', padding: '14px', background: G, color: '#050f06', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', marginBottom: '8px', opacity: loadingPlan === 'stake' ? 0.7 : 1 }}
-                >
-                  {loadingPlan === 'stake' ? 'Setting up escrow...' : "Yes, I commit — Stake €30 →"}
+                <button onClick={handleStake} disabled={loadingPlan === 'stake'} style={{ width: '100%', padding: '14px', background: G, color: '#050f06', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit', marginBottom: '8px', opacity: loadingPlan === 'stake' ? 0.7 : 1 }}>
+                  {loadingPlan === 'stake' ? 'Setting up escrow...' : 'Yes, I commit — Stake €30 →'}
                 </button>
-                <button
-                  onClick={() => setStakeConfirm(false)}
-                  style={{ width: '100%', padding: '10px', background: 'none', border: 'none', color: '#444', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
+                <button onClick={() => setStakeConfirm(false)} style={{ width: '100%', padding: '10px', background: 'none', border: 'none', color: '#444', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
                   ← Cancel
                 </button>
               </div>
@@ -194,9 +172,9 @@ export default function PricingPage() {
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px', marginBottom: '48px' }}>
           {[
-            { v: '90%', l: 'completion rate — stakers',          c: G },
-            { v: '23%', l: 'completion rate — standard',          c: '#f87171' },
-            { v: '€0',  l: 'effective cost if you finish',        c: G },
+            { v: '90%', l: 'completion rate — stakers', c: G },
+            { v: '23%', l: 'completion rate — standard', c: '#f87171' },
+            { v: '€0',  l: 'effective cost if you finish', c: G },
           ].map(({ v, l, c }) => (
             <div key={l} style={{ textAlign: 'center', padding: '28px 16px', background: '#0e0e0e', border: '1px solid #111', borderRadius: '14px' }}>
               <p style={{ color: c, fontFamily: '"DM Serif Display", serif', fontSize: '40px', fontWeight: '800', marginBottom: '6px' }}>{v}</p>
@@ -212,19 +190,16 @@ export default function PricingPage() {
             <h3 style={{ fontSize: '17px', fontWeight: '800', marginBottom: '4px' }}>Relocating employees?</h3>
             <p style={{ color: '#555', fontSize: '14px' }}>HR Shield dashboard — track team confidence, prevent €15k churn costs. From €99.99/user/month.</p>
           </div>
-          <button
-            onClick={() => router.push('/b2b-dashboard')}
-            style={{ background: '#fbbf2415', border: '1px solid #fbbf2440', color: '#fbbf24', borderRadius: '12px', padding: '12px 20px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-          >
+          <button onClick={() => router.push('/b2b-dashboard')} style={{ background: '#fbbf2415', border: '1px solid #fbbf2440', color: '#fbbf24', borderRadius: '12px', padding: '12px 20px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
             View Demo →
           </button>
         </div>
 
         {/* Free missions note */}
         <div style={{ background: GD, border: `1px solid ${GB}`, borderRadius: '14px', padding: '20px 24px', display: 'flex', gap: '14px', alignItems: 'center' }}>
-          <span style={{ fontSize: '28px' }}>🛡</span>
+          <ShieldCheck size={28} color={G} style={{ flexShrink: 0 }} />
           <div>
-            <p style={{ color: G, fontWeight: '800', fontSize: '15px', marginBottom: '4px' }}>Missions 1 & 2 are free</p>
+            <p style={{ color: G, fontWeight: '800', fontSize: '15px', marginBottom: '4px' }}>Missions 1 &amp; 2 are free</p>
             <p style={{ color: '#888', fontSize: '14px', lineHeight: 1.6 }}>No card required. Try the simulation before you commit to anything.</p>
           </div>
         </div>

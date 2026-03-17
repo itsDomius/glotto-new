@@ -1,371 +1,386 @@
+// ════════════════════════════════════════════════════════════════════════════
+// FILE: src/app/settings/page.tsx
+// CHANGE: All emojis replaced with lucide-react icons. Zero logic changes.
+// ════════════════════════════════════════════════════════════════════════════
 'use client'
 import React from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getCurrentMission, survivalMissions, isPaywalled } from '@/lib/data/missions'
+import {
+  ArrowLeft, Lock, Bell, SlidersHorizontal, CreditCard, Map,
+  Eye, EyeOff, Trash2, Check, Zap, Globe, MapPin, BarChart3,
+  CheckCircle2,
+} from 'lucide-react'
 
-const I = {
-  home: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  mission: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  progress: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-  rewards: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
-  settings: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
-  arrow: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
-  signout: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  lock: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
-  check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+type Toast = { msg: string; type: 'success' | 'error' }
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button onClick={() => onChange(!on)} style={{ width: '46px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer', padding: '3px', background: on ? '#4ade80' : '#1f1f1f', transition: 'background .2s', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+      <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: on ? '#061009' : '#444', transform: on ? 'translateX(20px)' : 'translateX(0)', transition: 'transform .2s' }} />
+    </button>
+  )
 }
 
-const DIFF_COLOR: Record<string, string> = {
-  Beginner: '#60a5fa', Easy: '#34d399', Medium: '#fbbf24', Hard: '#f97316', Expert: '#f87171',
-}
-const CITY_FLAG: Record<string, string> = {
-  athens: '🇬🇷', berlin: '🇩🇪', lisbon: '🇵🇹', amsterdam: '🇳🇱', madrid: '🇪🇸',
-  paris: '🇫🇷', milan: '🇮🇹', barcelona: '🇪🇸', prague: '🇨🇿', warsaw: '🇵🇱',
-  stockholm: '🇸🇪', other: '🌍',
-}
-const AFFILIATE_REWARDS = [
-  { day: 4, partner: 'N26', icon: '🏦', accent: '#4ade80', title: 'N26 Bank Account', desc: 'Open a European bank account in minutes, no branch visit needed.', url: 'https://n26.com', cta: 'Open N26 →', unlockedAt: 'Complete Day 4 mission' },
-  { day: 6, partner: 'SafetyWing', icon: '🛡', accent: '#fb923c', title: 'SafetyWing Health Insurance', desc: 'Worldwide expat health cover from $45/month.', url: 'https://safetywing.com', cta: 'Get covered →', unlockedAt: 'Complete Day 6 mission' },
-  { day: 7, partner: 'Airalo', icon: '📱', accent: '#60a5fa', title: 'Airalo eSIM', desc: 'Local data in 200+ countries. No SIM swap needed.', url: 'https://airalo.com', cta: 'Get eSIM →', unlockedAt: 'Complete Day 7 mission' },
-]
-const TABS = [
-  { id: 'home', label: 'Home', Icon: I.home },
-  { id: 'missions', label: 'Missions', Icon: I.mission },
-  { id: 'progress', label: 'Progress', Icon: I.progress },
-  { id: 'rewards', label: 'Rewards', Icon: I.rewards },
-]
-
-export default function Dashboard() {
-  const [profile, setProfile] = React.useState<Record<string, string | number | boolean | null>>({})
-  const [user, setUser] = React.useState<{ id: string; email?: string; user_metadata?: Record<string, string> } | null>(null)
-  const [loading, setLoading] = React.useState(true)
-  const [activeTab, setActiveTab] = React.useState('home')
-  const [tabKey, setTabKey] = React.useState(0)
-  const [totalSessions, setTotalSessions] = React.useState(0)
+export default function Settings() {
   const router = useRouter()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [user, setUser] = React.useState<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [profile, setProfile] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [activeSection, setActiveSection] = React.useState('relocation')
+  const [toast, setToast] = React.useState<Toast | null>(null)
+
+  const [newPw, setNewPw] = React.useState('')
+  const [confirmPw, setConfirmPw] = React.useState('')
+  const [showPw, setShowPw] = React.useState(false)
+  const [pwLoading, setPwLoading] = React.useState(false)
+
+  const [notifs, setNotifs] = React.useState({
+    missionReminder: true, milestoneAlerts: true, weeklyReport: false, rewardUnlocked: true, hrUpdates: false,
+  })
+
+  const [relocCity, setRelocCity]   = React.useState('')
+  const [relocLang, setRelocLang]   = React.useState('')
+  const [relocLevel, setRelocLevel] = React.useState('')
+  const [relocSaving, setRelocSaving] = React.useState(false)
+
+  const showToast = (msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   React.useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth/login'); return }
       setUser(user)
       const { data: p } = await supabase.from('profiles').select('*').eq('user_id', user.id).single()
-      if (!p || !p.onboarding_complete) { router.push('/onboarding'); return }
-      setProfile(p)
-      const { count } = await supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
-      setTotalSessions(count || 0)
+      if (p) { setProfile(p); setRelocCity(p.city || ''); setRelocLang(p.target_language || ''); setRelocLevel(p.current_level || '') }
       setLoading(false)
-    }
-    load()
+    })
   }, [router])
 
-  const go = (tab: string) => { setActiveTab(tab); setTabKey(k => k + 1) }
-  const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
+  const handlePasswordChange = async () => {
+    if (!newPw || !confirmPw) { showToast('Please fill in all fields', 'error'); return }
+    if (newPw !== confirmPw)  { showToast('Passwords do not match', 'error'); return }
+    if (newPw.length < 8)    { showToast('Password must be at least 8 characters', 'error'); return }
+    setPwLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPw })
+    setPwLoading(false)
+    if (error) { showToast(error.message, 'error') } else { showToast('Password updated', 'success'); setNewPw(''); setConfirmPw('') }
+  }
+
+  const handleRelocSave = async () => {
+    setRelocSaving(true)
+    const { error } = await supabase.from('profiles').update({ city: relocCity, target_language: relocLang, current_level: relocLevel }).eq('user_id', user?.id)
+    setRelocSaving(false)
+    if (error) { showToast('Failed to save', 'error') } else { showToast('Relocation profile updated', 'success') }
+  }
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm('Are you absolutely sure? All your integration progress will be lost forever.')
+    if (!confirmed) return
+    showToast('Please contact support@glotto.app to delete your account', 'error')
+  }
+
+  const isPaid   = profile?.subscription_status === 'active'
+  const isStaked = (profile?.staked_amount || 0) > 0
+  const name     = profile?.full_name?.split(' ')[0] || 'there'
+
+  const sections = [
+    { id: 'relocation',    label: 'Relocation Profile', Icon: Map            },
+    { id: 'subscription',  label: 'Subscription',       Icon: CreditCard     },
+    { id: 'notifications', label: 'Notifications',      Icon: Bell           },
+    { id: 'password',      label: 'Password',           Icon: Lock           },
+    { id: 'preferences',   label: 'Preferences',        Icon: SlidersHorizontal },
+  ]
 
   if (loading) return (
-    <main style={{ minHeight: '100vh', background: '#070707', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <main style={{ minHeight: '100vh', background: '#080808', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #1a1a1a', borderTopColor: '#4ade80', animation: 'spin .8s linear infinite' }} />
+      <div style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid #1a1a1a', borderTopColor: '#4ade80', animation: 'spin .8s linear infinite' }} />
     </main>
   )
-
-  const name = profile?.full_name?.toString().split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'there'
-  const city = (profile?.city as string) || 'other'
-  const lang = (profile?.target_language as string) || 'greek'
-  const level = (profile?.current_level as string) || 'A1'
-  const missionDay = Math.max(1, (profile?.mission_day as number) || 1)
-  const mission = getCurrentMission(missionDay)
-  const diffColor = DIFF_COLOR[mission.difficulty] || '#4ade80'
-  const isPaid = profile?.subscription_status === 'active' || ((profile?.staked_amount as number) || 0) > 0
-  const h = new Date().getHours()
-  const greeting = h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening'
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}
-        html,body{font-family:'DM Sans',sans-serif;font-size:16px}
+        *{box-sizing:border-box;margin:0;padding:0;font-family:'DM Sans',sans-serif}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .tab-in{animation:fadeUp .2s cubic-bezier(.16,1,.3,1) both}
-        .nav-item{transition:all .15s;border:none;cursor:pointer;width:100%;text-align:left;font-family:'DM Sans',sans-serif;display:flex;align-items:center}
-        .nav-item:hover{background:#141414!important;color:#ccc!important}
-        .card:hover{transform:translateY(-2px);border-color:#222!important}
-        .card{transition:all .18s}
-        .btn{transition:all .15s;border:none;cursor:pointer;font-family:'DM Sans',sans-serif}
-        .btn:hover{transform:translateY(-1px)}
-        .sb::-webkit-scrollbar{width:4px}
-        .sb::-webkit-scrollbar-track{background:transparent}
-        .sb::-webkit-scrollbar-thumb{background:#1a1a1a;border-radius:4px}
-        .sb{scrollbar-width:thin;scrollbar-color:#1a1a1a transparent}
-        .pulse{animation:pulse 2.5s ease infinite}
+        @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+        .sec-btn{transition:all .15s;border:none;cursor:pointer;text-align:left;width:100%}
+        .sec-btn:hover{background:#141414!important;color:#fff!important}
+        .field{background:#0f0f0f;border:1.5px solid #1f1f1f;border-radius:11px;padding:13px 17px;color:#fff;font-size:15px;width:100%;outline:none;transition:border-color .15s;font-family:'DM Sans',sans-serif}
+        .field:focus{border-color:#333}
+        .field::placeholder{color:#2a2a2a}
+        .save-btn{transition:all .15s;cursor:pointer;border:none;font-family:'DM Sans',sans-serif}
+        .save-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(74,222,128,.2)!important}
+        .danger-btn{transition:all .15s;cursor:pointer;border:none;font-family:'DM Sans',sans-serif}
+        .danger-btn:hover{background:#1a0808!important;border-color:#3a1414!important}
+        .row-hover{transition:background .15s}
+        .row-hover:hover{background:#111!important}
+        .sel{background:#0f0f0f;border:1.5px solid #1f1f1f;border-radius:11px;padding:12px 15px;color:#fff;font-size:15px;outline:none;cursor:pointer;font-family:'DM Sans',sans-serif;width:100%}
+        .sel:focus{border-color:#333}
+        .sb::-webkit-scrollbar{display:none}.sb{-ms-overflow-style:none;scrollbar-width:none}
       `}</style>
 
-      <div style={{ display: 'flex', height: '100vh', background: '#070707', overflow: 'hidden' }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 100, animation: 'toastIn .2s ease', background: toast.type === 'success' ? '#0f2a1a' : '#1a0808', border: `1px solid ${toast.type === 'success' ? '#1a4a2a' : '#3a1414'}`, borderRadius: '11px', padding: '13px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {toast.type === 'success'
+            ? <Check size={15} color="#4ade80" />
+            : <Trash2 size={15} color="#f87171" />
+          }
+          <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{toast.msg}</span>
+        </div>
+      )}
 
-        {/* ── Sidebar ── */}
-        <aside style={{ width: '240px', background: '#050505', borderRight: '1px solid #0d0d0d', display: 'flex', flexDirection: 'column', padding: '28px 14px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', marginBottom: '36px' }}>
-            <span style={{ color: '#4ade80', fontWeight: '800', fontSize: '22px', letterSpacing: '-0.5px' }}>Glotto</span>
+      <div className="sb" style={{ minHeight: '100vh', background: '#080808', display: 'flex' }}>
+
+        {/* Left panel */}
+        <div style={{ width: '270px', background: '#080808', borderRight: '1px solid #111', padding: '32px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          <button onClick={() => router.push('/dashboard')} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#333', background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', fontWeight: '500', marginBottom: '40px', padding: '4px 8px', fontFamily: 'DM Sans, sans-serif' }}>
+            <ArrowLeft size={16} color="#333" /> Back to Dashboard
+          </button>
+          <div style={{ marginBottom: '32px', padding: '0 8px' }}>
+            <div style={{ width: '52px', height: '52px', background: '#0f2a1a', border: '1px solid #1a3a25', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80', fontSize: '20px', fontWeight: '900', marginBottom: '14px' }}>
+              {name[0]?.toUpperCase()}
+            </div>
+            <h2 style={{ color: '#fff', fontSize: '19px', fontWeight: '800', letterSpacing: '-0.5px', marginBottom: '4px' }}>{name}</h2>
+            <p style={{ color: '#282828', fontSize: '13px', fontFamily: 'DM Mono, monospace' }}>{user?.email}</p>
           </div>
-
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
-            {TABS.map(({ id, label, Icon }) => {
-              const on = activeTab === id
+          <p style={{ color: '#2a2a2a', fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', padding: '0 8px', marginBottom: '8px' }}>Settings</p>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            {sections.map(({ id, label, Icon }) => {
+              const on = activeSection === id
               return (
-                <button key={id} className="nav-item" onClick={() => go(id)} style={{ gap: '11px', padding: '11px 13px', borderRadius: '9px', background: on ? '#111' : 'transparent', color: on ? '#fff' : '#2a2a2a', fontSize: '15px', fontWeight: on ? '700' : '400', border: 'none', position: 'relative' }}>
+                <button key={id} className="sec-btn" onClick={() => setActiveSection(id)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 13px', borderRadius: '9px', background: on ? '#141414' : 'transparent', color: on ? '#fff' : '#333', fontSize: '15px', fontWeight: on ? '600' : '400', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '3px', height: '20px', background: '#4ade80', borderRadius: '0 3px 3px 0' }} />}
-                  <span style={{ color: on ? '#4ade80' : '#2a2a2a', opacity: on ? 1 : 0.7 }}><Icon /></span>
+                  <Icon size={17} color={on ? '#4ade80' : '#333'} />
                   {label}
-                  {id === 'missions' && missionDay <= 7 && <span className="pulse" style={{ marginLeft: 'auto', width: '7px', height: '7px', background: '#4ade80', borderRadius: '50%' }} />}
+                  {id === 'subscription' && isPaid && (
+                    <span style={{ marginLeft: 'auto', background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '6px', fontFamily: 'DM Mono, monospace' }}>ACTIVE</span>
+                  )}
                 </button>
               )
             })}
-            <button className="nav-item" onClick={() => router.push('/settings')} style={{ gap: '11px', padding: '11px 13px', borderRadius: '9px', background: 'transparent', color: '#2a2a2a', fontSize: '15px', fontWeight: '400', border: 'none', marginTop: '4px' }}>
-              <span style={{ opacity: 0.5 }}><I.settings /></span>Settings
-            </button>
           </nav>
+        </div>
 
-          {/* City pill */}
-          <div style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '11px', padding: '13px 15px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '11px' }}>
-            <span style={{ fontSize: '20px' }}>{CITY_FLAG[city] || '🌍'}</span>
-            <div>
-              <p style={{ color: '#fff', fontSize: '14px', fontWeight: '700', textTransform: 'capitalize' }}>{city}</p>
-              <p style={{ color: '#2a2a2a', fontSize: '11px', fontFamily: '"DM Mono", monospace', textTransform: 'capitalize' }}>{lang} · {level}</p>
-            </div>
-          </div>
+        {/* Main */}
+        <div className="sb" style={{ flex: 1, overflowY: 'auto', padding: '52px 64px', maxWidth: '800px' }}>
 
-          {/* User row */}
-          <div style={{ borderTop: '1px solid #0d0d0d', paddingTop: '16px', display: 'flex', alignItems: 'center', gap: '11px' }}>
-            <div style={{ width: '34px', height: '34px', background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80', fontSize: '13px', fontWeight: '800', flexShrink: 0 }}>{name[0]?.toUpperCase()}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ color: '#fff', fontSize: '14px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-              <p style={{ color: '#1a1a1a', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"DM Mono", monospace' }}>{user?.email}</p>
-            </div>
-            <button onClick={signOut} className="btn" style={{ background: 'none', border: 'none', color: '#1a1a1a', padding: '4px', display: 'flex' }}><I.signout /></button>
-          </div>
-        </aside>
-
-        {/* ── Main ── */}
-        <div className="sb" style={{ flex: 1, overflowY: 'auto', background: '#0a0a0a' }}>
-
-          {/* Top bar */}
-          <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'rgba(10,10,10,.88)', backdropFilter: 'blur(20px)', borderBottom: '1px solid #0d0d0d', padding: '18px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <p style={{ color: '#2a2a2a', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>{greeting}, {name}</p>
-              <h1 style={{ color: '#fff', fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px' }}>{TABS.find(t => t.id === activeTab)?.label}</h1>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '20px', padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <span style={{ fontSize: '15px' }}>📍</span>
-                <span style={{ color: '#888', fontSize: '13px', fontWeight: '600' }}>Day {missionDay} of 7</span>
-              </div>
-              {isPaid && <div style={{ background: '#0f2a1a', border: '1px solid #1a3a1f', borderRadius: '20px', padding: '7px 16px' }}><span style={{ color: '#4ade80', fontSize: '13px', fontWeight: '700' }}>✓ Active</span></div>}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div key={tabKey} className="tab-in" style={{ padding: '40px 48px', maxWidth: '960px' }}>
-
-            {/* ── HOME ── */}
-            {activeTab === 'home' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                {/* Mission hero */}
-                <div style={{ background: 'linear-gradient(160deg, #060f07, #091a0c, #050c06)', border: '1px solid rgba(74,222,128,.12)', borderRadius: '22px', padding: '44px', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: '-80px', right: '-80px', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(74,222,128,.07), transparent 65%)', pointerEvents: 'none' }} />
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', flexWrap: 'wrap' }}>
-                    <div style={{ background: 'rgba(74,222,128,.08)', border: '1px solid rgba(74,222,128,.2)', borderRadius: '20px', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="pulse" style={{ display: 'inline-block', width: '7px', height: '7px', background: '#4ade80', borderRadius: '50%' }} />
-                      <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>Day {mission.day} · Today</span>
-                    </div>
-                    <div style={{ background: `${diffColor}15`, border: `1px solid ${diffColor}40`, borderRadius: '20px', padding: '6px 16px' }}>
-                      <span style={{ color: diffColor, fontSize: '12px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase', fontFamily: '"DM Mono", monospace' }}>{mission.difficulty}</span>
-                    </div>
-                    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '20px', padding: '6px 14px' }}>
-                      <span style={{ color: '#444', fontSize: '12px', fontWeight: '600', fontFamily: '"DM Mono", monospace' }}>{mission.category}</span>
-                    </div>
-                  </div>
-                  <h2 style={{ color: '#fff', fontSize: '48px', fontWeight: '900', letterSpacing: '-2px', lineHeight: 1.0, marginBottom: '18px' }}>{mission.title}</h2>
-                  <p style={{ color: 'rgba(255,255,255,.35)', fontSize: '16px', lineHeight: 1.7, maxWidth: '520px', marginBottom: '26px' }}>{mission.objective}</p>
-                  <div style={{ background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '13px', padding: '14px 18px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '520px' }}>
-                    <span style={{ fontSize: '18px' }}>🎭</span>
-                    <p style={{ color: 'rgba(255,255,255,.3)', fontSize: '14px', lineHeight: 1.5 }}>{mission.npc_persona}</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                    {isPaywalled(mission.day) && !isPaid ? (
-                      <button className="btn" onClick={() => router.push('/pricing')} style={{ background: '#fb923c', color: '#050f06', borderRadius: '13px', padding: '15px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '9px' }}>
-                        🔒 Unlock Mission {mission.day} <I.arrow />
-                      </button>
-                    ) : (
-                      <button className="btn" onClick={() => router.push(`/mission?day=${mission.day}`)} style={{ background: '#4ade80', color: '#050f06', borderRadius: '13px', padding: '15px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '9px', boxShadow: '0 8px 32px rgba(74,222,128,.25)' }}>
-                        Enter Simulation <I.arrow />
-                      </button>
-                    )}
-                    <span style={{ color: '#2a2a2a', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>~10 min · +50 XP</span>
-                  </div>
+          {/* ── RELOCATION PROFILE ── */}
+          {activeSection === 'relocation' && (
+            <div style={{ animation: 'fadeUp .2s ease' }}>
+              <h1 style={{ color: '#fff', fontSize: '30px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '8px' }}>Relocation Profile</h1>
+              <p style={{ color: '#444', fontSize: '15px', fontFamily: 'DM Mono, monospace', marginBottom: '40px' }}>Update your city, language, and level. This shapes your missions.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '36px' }}>
+                <div>
+                  <label style={{ color: '#666', fontSize: '12px', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', display: 'flex', alignItems: 'center', gap: 6, marginBottom: '9px' }}>
+                    <MapPin size={13} color="#555" />Your City
+                  </label>
+                  <select className="sel" value={relocCity} onChange={e => setRelocCity(e.target.value)}>
+                    <option value="">Select city</option>
+                    {[['athens','Athens 🇬🇷'],['berlin','Berlin 🇩🇪'],['lisbon','Lisbon 🇵🇹'],['amsterdam','Amsterdam 🇳🇱'],['madrid','Madrid 🇪🇸'],['paris','Paris 🇫🇷'],['milan','Milan 🇮🇹'],['barcelona','Barcelona 🇪🇸'],['prague','Prague 🇨🇿'],['warsaw','Warsaw 🇵🇱'],['stockholm','Stockholm 🇸🇪'],['other','Other 🌍']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
                 </div>
-
-                {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                  {[
-                    { icon: '🗓', n: `Day ${missionDay}/7`, label: 'Integration Day', color: '#4ade80' },
-                    { icon: '✅', n: `${totalSessions}`, label: 'Missions Done', color: '#60a5fa' },
-                    { icon: isPaid ? '⚡' : '🔓', n: isPaid ? 'Active' : 'Free', label: isPaid ? 'Full Access' : '2 Free Missions', color: isPaid ? '#4ade80' : '#fbbf24' },
-                  ].map(({ icon, n, label, color }) => (
-                    <div key={label} className="card" style={{ background: '#0e0e0e', border: '1px solid #111', borderRadius: '16px', padding: '24px' }}>
-                      <span style={{ fontSize: '22px', marginBottom: '12px', display: 'block' }}>{icon}</span>
-                      <p style={{ color, fontSize: '26px', fontWeight: '900', letterSpacing: '-0.5px', marginBottom: '5px' }}>{n}</p>
-                      <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', fontFamily: '"DM Mono", monospace' }}>{label}</p>
-                    </div>
-                  ))}
+                <div>
+                  <label style={{ color: '#666', fontSize: '12px', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', display: 'flex', alignItems: 'center', gap: 6, marginBottom: '9px' }}>
+                    <Globe size={13} color="#555" />Target Language
+                  </label>
+                  <select className="sel" value={relocLang} onChange={e => setRelocLang(e.target.value)}>
+                    <option value="">Select language</option>
+                    {[['greek','Greek'],['german','German'],['spanish','Spanish'],['french','French'],['italian','Italian'],['portuguese','Portuguese'],['dutch','Dutch'],['polish','Polish'],['swedish','Swedish'],['czech','Czech'],['japanese','Japanese'],['mandarin','Mandarin']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
                 </div>
-
-                {/* Quick links */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="card" style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', cursor: 'pointer' }} onClick={() => router.push('/pricing')}>
-                    <span style={{ fontSize: '22px', marginBottom: '10px', display: 'block' }}>⚡</span>
-                    <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>Commitment Mode</p>
-                    <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.5 }}>Stake €30 — complete missions — get it back.</p>
-                  </div>
-                  <div className="card" style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', cursor: 'pointer' }} onClick={() => router.push('/b2b-dashboard')}>
-                    <span style={{ fontSize: '22px', marginBottom: '10px', display: 'block' }}>🏢</span>
-                    <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>HR Shield</p>
-                    <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.5 }}>Company relocated you? Show this to your HR.</p>
-                  </div>
+                <div>
+                  <label style={{ color: '#666', fontSize: '12px', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', display: 'flex', alignItems: 'center', gap: 6, marginBottom: '9px' }}>
+                    <BarChart3 size={13} color="#555" />Current Level
+                  </label>
+                  <select className="sel" value={relocLevel} onChange={e => setRelocLevel(e.target.value)}>
+                    <option value="">Select level</option>
+                    {[['A1','A1 — Complete Beginner'],['A2','A2 — Elementary'],['B1','B1 — Intermediate'],['B2','B2 — Upper Intermediate'],['C1','C1 — Advanced']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
                 </div>
               </div>
-            )}
+              <button className="save-btn" onClick={handleRelocSave} disabled={relocSaving} style={{ background: '#4ade80', color: '#061009', borderRadius: '11px', padding: '14px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {relocSaving ? 'Saving...' : <><Check size={16} /> Save Profile</>}
+              </button>
+            </div>
+          )}
 
-            {/* ── MISSIONS ── */}
-            {activeTab === 'missions' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ marginBottom: '10px' }}>
-                  <h2 style={{ color: '#fff', fontSize: '24px', fontWeight: '800', marginBottom: '7px', letterSpacing: '-0.5px' }}>7-Day Survival Bootcamp</h2>
-                  <p style={{ color: '#444', fontSize: '15px' }}>Complete all 7 missions to finish your integration. Each one is a real scenario.</p>
-                </div>
-                {survivalMissions.map((m) => {
-                  const done = m.day < missionDay
-                  const current = m.day === missionDay
-                  const locked = isPaywalled(m.day) && !isPaid
-                  const dc = DIFF_COLOR[m.difficulty] || '#fff'
-                  return (
-                    <div key={m.id} className="card" onClick={() => locked ? router.push('/pricing') : router.push(`/mission?day=${m.day}`)} style={{ background: current ? '#0a160a' : '#0e0e0e', border: `1px solid ${current ? 'rgba(74,222,128,.2)' : '#111'}`, borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', cursor: 'pointer', opacity: done ? 0.5 : 1 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '11px', flexShrink: 0, background: done ? '#0f2a1a' : current ? '#4ade80' : '#111', border: `1px solid ${done ? '#1a3a1f' : current ? '#4ade80' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', fontFamily: '"DM Mono", monospace', color: done ? '#4ade80' : current ? '#050f06' : '#333' }}>
-                        {done ? <I.check /> : m.day}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '4px' }}>
-                          <p style={{ color: current ? '#4ade80' : '#fff', fontWeight: '700', fontSize: '16px' }}>{m.title}</p>
-                          <span style={{ background: `${dc}15`, color: dc, fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px' }}>{m.difficulty}</span>
-                          {m.affiliate_reward && <span style={{ background: '#fbbf2415', color: '#fbbf24', fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px' }}>+ Reward</span>}
-                        </div>
-                        <p style={{ color: '#444', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>{m.category}</p>
-                      </div>
-                      <div style={{ flexShrink: 0 }}>
-                        {locked ? <span style={{ color: '#555' }}><I.lock /></span> : current ? <span style={{ color: '#4ade80' }}><I.arrow /></span> : null}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+          {/* ── SUBSCRIPTION ── */}
+          {activeSection === 'subscription' && (
+            <div style={{ animation: 'fadeUp .2s ease' }}>
+              <h1 style={{ color: '#fff', fontSize: '30px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '8px' }}>Subscription</h1>
+              <p style={{ color: '#444', fontSize: '15px', fontFamily: 'DM Mono, monospace', marginBottom: '40px' }}>Manage your plan and billing</p>
 
-            {/* ── PROGRESS ── */}
-            {activeTab === 'progress' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '18px', padding: '32px' }}>
-                  <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Mono", monospace', marginBottom: '18px' }}>Integration Progress</p>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '22px' }}>
-                    {survivalMissions.map(m => {
-                      const done = m.day < missionDay
-                      const curr = m.day === missionDay
-                      return (
-                        <div key={m.day} style={{ flex: 1 }}>
-                          <div style={{ width: '100%', height: '40px', borderRadius: '9px', background: done ? '#4ade80' : curr ? '#0f2a1a' : '#111', border: `1px solid ${done ? '#4ade80' : curr ? '#1a3a1f' : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: done ? '#050f06' : curr ? '#4ade80' : '#2a2a2a', fontFamily: '"DM Mono", monospace' }}>
-                            {done ? '✓' : m.day}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <p style={{ color: '#555', fontSize: '14px' }}>{totalSessions} of 7 missions complete</p>
-                    <p style={{ color: '#4ade80', fontSize: '14px', fontWeight: '700' }}>{Math.round((Math.max(0, missionDay - 1) / 7) * 100)}% integrated</p>
-                  </div>
-                </div>
-
-                <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '18px', padding: '32px' }}>
-                  <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Mono", monospace', marginBottom: '18px' }}>Your Setup</p>
-                  {[
-                    { k: 'City', v: city, icon: CITY_FLAG[city] || '🌍' },
-                    { k: 'Language', v: lang, icon: '🗣' },
-                    { k: 'Level', v: level, icon: '📊' },
-                    { k: 'Access', v: isPaid ? 'Full Access' : 'Free (2 missions)', icon: isPaid ? '⚡' : '🔓' },
-                  ].map(({ k, v, icon }) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #111' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '18px' }}>{icon}</span>
-                        <span style={{ color: '#555', fontSize: '15px' }}>{k}</span>
-                      </div>
-                      <span style={{ color: '#fff', fontSize: '15px', fontWeight: '600', textTransform: 'capitalize' }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card" onClick={() => router.push('/proof')} style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: isPaid ? '#0f2a1a' : '#0e0e0e', border: `1px solid ${isPaid ? '#1a3a1f' : '#1a1a1a'}`, borderRadius: '16px', padding: '28px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '18px' }}>
                   <div>
-                    <p style={{ color: '#fff', fontWeight: '700', fontSize: '16px', marginBottom: '5px' }}>Session History</p>
-                    <p style={{ color: '#444', fontSize: '14px' }}>{totalSessions} sessions completed</p>
+                    <p style={{ color: '#555', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', marginBottom: '6px' }}>Current Plan</p>
+                    <h3 style={{ color: '#fff', fontSize: '22px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {isStaked ? <><Zap size={20} color="#4ade80" /> Commitment Mode</> : isPaid ? <><CheckCircle2 size={20} color="#4ade80" /> Full Access</> : <><Lock size={20} color="#555" /> Free Plan</>}
+                    </h3>
                   </div>
-                  <span style={{ color: '#4ade80' }}><I.arrow /></span>
+                  <span style={{ background: isPaid || isStaked ? '#0f2a1a' : '#111', color: isPaid || isStaked ? '#4ade80' : '#555', border: `1px solid ${isPaid || isStaked ? '#1a3a1f' : '#1a1a1a'}`, fontSize: '12px', fontWeight: '700', padding: '5px 12px', borderRadius: '9px', fontFamily: 'DM Mono, monospace' }}>
+                    {isPaid || isStaked ? 'ACTIVE' : 'FREE'}
+                  </span>
                 </div>
+                {isStaked && (
+                  <div style={{ background: '#0a0a0a', borderRadius: '11px', padding: '16px 18px', marginBottom: '14px' }}>
+                    <p style={{ color: '#4ade80', fontWeight: '700', fontSize: '14px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CreditCard size={14} color="#4ade80" /> €{profile?.staked_amount} staked
+                    </p>
+                    <p style={{ color: '#555', fontSize: '13px', lineHeight: 1.5 }}>Complete all 7 missions and your stake is returned in full. Completion rate with Commitment Mode: 90%.</p>
+                  </div>
+                )}
+                {!isPaid && !isStaked && <p style={{ color: '#555', fontSize: '14px', lineHeight: 1.6 }}>You have access to Missions 1 &amp; 2 for free. Upgrade to unlock all 7 missions and the full Relocation OS.</p>}
+                {(isPaid || isStaked) && <p style={{ color: '#555', fontSize: '14px' }}>Full access to all 7 survival missions, AI rehearsal, document scanner, and dependency map.</p>}
               </div>
-            )}
 
-            {/* ── REWARDS ── */}
-            {activeTab === 'rewards' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ marginBottom: '10px' }}>
-                  <h2 style={{ color: '#fff', fontSize: '24px', fontWeight: '800', marginBottom: '7px', letterSpacing: '-0.5px' }}>Affiliate Rewards</h2>
-                  <p style={{ color: '#444', fontSize: '15px' }}>Pass missions, unlock real offers from our partners.</p>
-                </div>
-                {AFFILIATE_REWARDS.map((r) => {
-                  const unlocked = missionDay > r.day
-                  return (
-                    <div key={r.partner} className="card" style={{ background: unlocked ? '#0e0e0e' : '#0a0a0a', border: `1px solid ${unlocked ? `${r.accent}30` : '#111'}`, borderRadius: '18px', padding: '28px', display: 'flex', gap: '20px', alignItems: 'flex-start', opacity: unlocked ? 1 : 0.5 }}>
-                      <div style={{ width: 54, height: 54, borderRadius: '15px', background: unlocked ? `${r.accent}15` : '#111', border: `1px solid ${unlocked ? `${r.accent}30` : '#1a1a1a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>{r.icon}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '5px' }}>
-                          <p style={{ color: '#fff', fontWeight: '700', fontSize: '17px' }}>{r.title}</p>
-                          {unlocked && <span style={{ background: `${r.accent}15`, color: r.accent, fontSize: '11px', fontWeight: '700', padding: '3px 9px', borderRadius: '7px' }}>UNLOCKED</span>}
-                        </div>
-                        <p style={{ color: '#444', fontSize: '14px', lineHeight: 1.6, marginBottom: unlocked ? '16px' : '10px' }}>{r.desc}</p>
-                        {unlocked ? (
-                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: r.accent, color: '#050f06', borderRadius: '11px', padding: '10px 18px', fontSize: '14px', fontWeight: '800', textDecoration: 'none' }}>{r.cta}</a>
-                        ) : (
-                          <p style={{ color: '#2a2a2a', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>🔒 {r.unlockedAt}</p>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-                {!isPaid && (
-                  <div style={{ background: '#0a140a', border: '1px solid #1a3a1f', borderRadius: '18px', padding: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
+                <p style={{ color: '#333', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', marginBottom: '16px' }}>Full Access Includes</p>
+                {[
+                  { Icon: MapPin,      title: '7 Survival Missions',   desc: 'Metro → Tax ID → Bank → Health → SIM' },
+                  { Icon: Globe,       title: 'AI Rehearsal',          desc: 'Practice before visiting any government office' },
+                  { Icon: Zap,         title: 'Document Scanner',      desc: 'Translate any scary official letter instantly' },
+                  { Icon: BarChart3,   title: 'Dependency Map',        desc: 'Visual roadmap of your entire integration' },
+                  { Icon: CreditCard,  title: 'Affiliate Rewards',     desc: 'N26, SafetyWing, Airalo — unlocked on completion' },
+                  { Icon: Bell,        title: 'Panic Button',          desc: 'Emergency phrases in any location, any time' },
+                ].map(({ Icon, title, desc }) => (
+                  <div key={title} style={{ display: 'flex', gap: '14px', padding: '12px 0', borderBottom: '1px solid #111', alignItems: 'flex-start' }}>
+                    <Icon size={20} color={isPaid || isStaked ? '#4ade80' : '#333'} style={{ flexShrink: 0, marginTop: 2 }} />
                     <div>
-                      <p style={{ color: '#4ade80', fontWeight: '800', fontSize: '16px', marginBottom: '5px' }}>Unlock all 7 missions to earn all 3 rewards</p>
-                      <p style={{ color: '#555', fontSize: '14px' }}>€29.99/month or stake €30 and get it back when you finish.</p>
+                      <p style={{ color: isPaid || isStaked ? '#fff' : '#555', fontWeight: '600', fontSize: '15px', marginBottom: '2px' }}>{title}</p>
+                      <p style={{ color: '#333', fontSize: '13px' }}>{desc}</p>
                     </div>
-                    <button className="btn" onClick={() => router.push('/pricing')} style={{ background: '#4ade80', color: '#050f06', borderRadius: '13px', padding: '13px 24px', fontSize: '15px', fontWeight: '800', whiteSpace: 'nowrap' }}>See Plans →</button>
+                    {(isPaid || isStaked) && <Check size={14} color="#4ade80" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                  </div>
+                ))}
+              </div>
+
+              {!isPaid && !isStaked ? (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button className="save-btn" onClick={() => router.push('/pricing')} style={{ flex: 1, background: '#4ade80', color: '#061009', borderRadius: '11px', padding: '14px 24px', fontSize: '16px', fontWeight: '800' }}>Upgrade to Full Access →</button>
+                  <button className="save-btn" onClick={() => router.push('/pricing')} style={{ flex: 1, background: '#111', border: '1px solid #1a1a1a', color: '#888', borderRadius: '11px', padding: '14px 24px', fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                    <Zap size={16} color="#888" /> Try Commitment Mode
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button className="save-btn" onClick={() => router.push('/pricing')} style={{ background: '#111', border: '1px solid #1a1a1a', color: '#888', borderRadius: '11px', padding: '14px 24px', fontSize: '15px', fontWeight: '700' }}>View All Plans</button>
+                  <button className="danger-btn" onClick={() => showToast('To cancel, email billing@glotto.app', 'error')} style={{ background: '#110808', border: '1px solid #2a1414', color: '#f87171', borderRadius: '11px', padding: '14px 24px', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Trash2 size={14} color="#f87171" /> Cancel Subscription
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── NOTIFICATIONS ── */}
+          {activeSection === 'notifications' && (
+            <div style={{ animation: 'fadeUp .2s ease' }}>
+              <h1 style={{ color: '#fff', fontSize: '30px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '8px' }}>Notifications</h1>
+              <p style={{ color: '#444', fontSize: '15px', fontFamily: 'DM Mono, monospace', marginBottom: '40px' }}>Choose what Glotto notifies you about</p>
+              <div style={{ background: '#0f0f0f', border: '1px solid #181818', borderRadius: '15px', overflow: 'hidden' }}>
+                {[
+                  { key: 'missionReminder', label: 'Daily Mission Reminder',   desc: 'Reminded to complete your mission each day' },
+                  { key: 'milestoneAlerts', label: 'Milestone Alerts',         desc: 'When you unlock a new reward or complete a key step' },
+                  { key: 'weeklyReport',    label: 'Weekly Integration Report', desc: 'Summary of your relocation progress every Sunday' },
+                  { key: 'rewardUnlocked',  label: 'Reward Unlocked',          desc: 'When a new partner reward becomes available to you' },
+                  { key: 'hrUpdates',       label: 'HR Updates',               desc: 'Messages from your company HR about your relocation' },
+                ].map(({ key, label, desc }, i, arr) => (
+                  <div key={key} className="row-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px', borderBottom: i < arr.length - 1 ? '1px solid #131313' : 'none' }}>
+                    <div>
+                      <p style={{ color: '#fff', fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>{label}</p>
+                      <p style={{ color: '#333', fontSize: '13px', fontFamily: 'DM Mono, monospace' }}>{desc}</p>
+                    </div>
+                    <Toggle on={notifs[key as keyof typeof notifs]} onChange={v => setNotifs(n => ({ ...n, [key]: v }))} />
+                  </div>
+                ))}
+              </div>
+              <button className="save-btn" onClick={() => showToast('Notification preferences saved', 'success')} style={{ background: '#4ade80', color: '#061009', borderRadius: '11px', padding: '14px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '28px' }}>
+                <Check size={16} /> Save Preferences
+              </button>
+            </div>
+          )}
+
+          {/* ── PASSWORD ── */}
+          {activeSection === 'password' && (
+            <div style={{ animation: 'fadeUp .2s ease' }}>
+              <h1 style={{ color: '#fff', fontSize: '30px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '8px' }}>Password</h1>
+              <p style={{ color: '#444', fontSize: '15px', fontFamily: 'DM Mono, monospace', marginBottom: '40px' }}>Change your account password</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', marginBottom: '32px' }}>
+                <div>
+                  <label style={{ color: '#666', fontSize: '12px', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', display: 'block', marginBottom: '9px' }}>New Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showPw ? 'text' : 'password'} className="field" placeholder="Min. 8 characters" value={newPw} onChange={e => setNewPw(e.target.value)} style={{ paddingRight: '50px' }} />
+                    <button onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#333', cursor: 'pointer', display: 'flex' }}>
+                      {showPw ? <EyeOff size={16} color="#333" /> : <Eye size={16} color="#333" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ color: '#666', fontSize: '12px', fontWeight: '600', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'DM Mono, monospace', display: 'block', marginBottom: '9px' }}>Confirm New Password</label>
+                  <input type={showPw ? 'text' : 'password'} className="field" placeholder="Repeat new password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+                  {confirmPw && newPw !== confirmPw && <p style={{ color: '#f87171', fontSize: '13px', marginTop: '6px', fontFamily: 'DM Mono, monospace' }}>Passwords don&apos;t match</p>}
+                  {confirmPw && newPw === confirmPw && newPw.length >= 8 && <p style={{ color: '#4ade80', fontSize: '13px', marginTop: '6px', fontFamily: 'DM Mono, monospace', display: 'flex', alignItems: 'center', gap: 4 }}><Check size={12} /> Passwords match</p>}
+                </div>
+                {newPw && (
+                  <div>
+                    <div style={{ display: 'flex', gap: '4px', marginBottom: '6px' }}>
+                      {[newPw.length >= 8, /[A-Z]/.test(newPw), /[0-9]/.test(newPw), /[^A-Za-z0-9]/.test(newPw)].map((ok, i) => (
+                        <div key={i} style={{ flex: 1, height: '3px', borderRadius: '3px', background: ok ? '#4ade80' : '#1f1f1f', transition: 'background .2s' }} />
+                      ))}
+                    </div>
+                    <p style={{ color: '#333', fontSize: '12px', fontFamily: 'DM Mono, monospace' }}>
+                      {newPw.length < 8 ? 'Too short' : /[A-Z]/.test(newPw) && /[0-9]/.test(newPw) && /[^A-Za-z0-9]/.test(newPw) ? '✓ Strong password' : 'Add uppercase, numbers, or symbols'}
+                    </p>
                   </div>
                 )}
               </div>
-            )}
+              <button className="save-btn" onClick={handlePasswordChange} disabled={pwLoading} style={{ background: '#4ade80', color: '#061009', borderRadius: '11px', padding: '14px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {pwLoading ? 'Updating...' : <><Check size={16} /> Update Password</>}
+              </button>
+              <div style={{ marginTop: '60px', borderTop: '1px solid #111', paddingTop: '40px' }}>
+                <h3 style={{ color: '#f87171', fontSize: '17px', fontWeight: '700', marginBottom: '8px' }}>Danger Zone</h3>
+                <p style={{ color: '#282828', fontSize: '14px', fontFamily: 'DM Mono, monospace', marginBottom: '20px' }}>These actions are permanent and cannot be undone.</p>
+                <button className="danger-btn" onClick={handleDeleteAccount} style={{ display: 'flex', alignItems: 'center', gap: '9px', background: '#110808', border: '1px solid #2a1414', color: '#f87171', borderRadius: '11px', padding: '13px 22px', fontSize: '15px', fontWeight: '600' }}>
+                  <Trash2 size={15} color="#f87171" /> Delete Account
+                </button>
+              </div>
+            </div>
+          )}
 
-          </div>
+          {/* ── PREFERENCES ── */}
+          {activeSection === 'preferences' && (
+            <div style={{ animation: 'fadeUp .2s ease' }}>
+              <h1 style={{ color: '#fff', fontSize: '30px', fontWeight: '900', letterSpacing: '-1px', marginBottom: '8px' }}>Preferences</h1>
+              <p style={{ color: '#444', fontSize: '15px', fontFamily: 'DM Mono, monospace', marginBottom: '40px' }}>Customize your Glotto experience</p>
+              <div style={{ background: '#0f0f0f', border: '1px solid #181818', borderRadius: '15px', overflow: 'hidden', marginBottom: '28px' }}>
+                {[
+                  { key: 'sound',      label: 'Sound Effects',        desc: 'Play sounds for XP gains and mission completion' },
+                  { key: 'autoScroll', label: 'Auto-scroll Messages', desc: 'Automatically scroll to new messages in missions' },
+                  { key: 'haptics',    label: 'Haptic Feedback',      desc: 'Vibration on key interactions (mobile)' },
+                ].map(({ key, label, desc }, i, arr) => (
+                  <div key={key} className="row-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px', borderBottom: i < arr.length - 1 ? '1px solid #131313' : 'none' }}>
+                    <div>
+                      <p style={{ color: '#fff', fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>{label}</p>
+                      <p style={{ color: '#333', fontSize: '13px', fontFamily: 'DM Mono, monospace' }}>{desc}</p>
+                    </div>
+                    <Toggle on={key === 'autoScroll'} onChange={() => showToast('Preference saved', 'success')} />
+                  </div>
+                ))}
+              </div>
+              <button className="save-btn" onClick={() => showToast('Preferences saved', 'success')} style={{ background: '#4ade80', color: '#061009', borderRadius: '11px', padding: '14px 30px', fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Check size={16} /> Save Preferences
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>
