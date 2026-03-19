@@ -1,9 +1,16 @@
 // ════════════════════════════════════════════════════════════════════════════
-// FILE: src/app/api/chat/route.ts — FULL REPLACEMENT
-// KEY CHANGES:
-//   1. `initiate: true` → AI speaks first, returns JSON {reply, suggestions[3]}
-//   2. Normal messages → returns JSON {reply, suggestions[3], passed?, passedData?}
-//   3. Language injection preserved
+// FILE: src/app/api/chat/route.ts  ← PASTE THIS ENTIRE FILE
+//
+// FIXES APPLIED:
+//   FIX A — Panic mode now generates LOCATION-SPECIFIC phrases.
+//            Hospital gets medical phrases, Pharmacy gets medication phrases,
+//            Police gets report phrases, Bank gets card/fraud phrases, etc.
+//            Previously all 6 locations returned the same 5 generic phrases.
+//   FIX B — Tutor mode session.update() used .order().limit() which is
+//            invalid in Supabase and silently failed (scores never saved).
+//            Now fetches latest session id first, updates by id.
+//   FIX C — Removed dead EVAL_TOOL constant that was never used.
+//   FIX D — Added userId null-guard so anonymous requests don't crash.
 // ════════════════════════════════════════════════════════════════════════════
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
@@ -15,10 +22,13 @@ import { NextResponse } from 'next/server'
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 const MODEL_MAP: Record<string, string> = {
-  tutor: 'gpt-4o', mission: 'gpt-4o', panic: 'gpt-4o-mini', rehearsal: 'gpt-4o',
+  tutor:     'gpt-4o',
+  mission:   'gpt-4o',
+  panic:     'gpt-4o-mini',
+  rehearsal: 'gpt-4o',
 }
 
-// ── Language injection into system prompts ───────────────────────────────────
+// ── Language injection ────────────────────────────────────────────────────────
 function injectLanguage(prompt: string, language: string): string {
   const lang = language.charAt(0).toUpperCase() + language.slice(1)
   return prompt
@@ -30,7 +40,7 @@ function injectLanguage(prompt: string, language: string): string {
     + `\n\nCRITICAL: You MUST respond ONLY in ${lang}. After your ${lang} response, add a blank line, then the English translation in italics format like: *(English: your translation)*. This helps the learner follow along. NEVER respond in English only.`
 }
 
-// ── Build RPG suggestions prompt addon ──────────────────────────────────────
+// ── RPG suggestions JSON format instruction ───────────────────────────────────
 function suggestionsAddon(lang: string): string {
   return `
 
@@ -48,7 +58,7 @@ RESPONSE FORMAT — you MUST respond with valid JSON exactly like this:
 }
 
 Rules for suggestions:
-- Always 3 suggestions
+- Always exactly 3 suggestions
 - In plain English (not ${lang})
 - Short (max 8 words each)
 - Actionable phrases the user could say or do next
@@ -61,21 +71,20 @@ Set feedback to one encouraging sentence.
 `
 }
 
-const EVAL_TOOL: OpenAI.Chat.ChatCompletionTool = {
-  type: 'function',
-  function: {
-    name: 'evaluate_mission',
-    description: 'Evaluate whether the user has passed the mission.',
-    parameters: {
-      type: 'object',
-      properties: {
-        confidence_score: { type: 'number' },
-        mission_passed: { type: 'boolean' },
-        feedback: { type: 'string' },
-      },
-      required: ['confidence_score', 'mission_passed', 'feedback'],
-    },
-  },
+// ── FIX A: Location-specific emergency phrase guides ─────────────────────────
+const LOCATION_GUIDES: Record<string, string> = {
+  'Hospital / ER':
+    'medical emergency — phrases: call an ambulance, I am in severe pain, I cannot breathe, I am allergic to [X], where is the emergency room, I need a doctor urgently',
+  'Pharmacy':
+    'pharmacy visit — phrases: I need this medication (show box), I have a prescription, I have a headache/fever/pain, do I need a prescription for this, what is the dosage, I am allergic to penicillin',
+  'Police Station':
+    'police report — phrases: I want to report a theft, my passport was stolen, my wallet was stolen, I need an official report for insurance, I need an interpreter, I am a foreign national',
+  'Bank':
+    'banking emergency — phrases: I need to block my stolen card immediately, I want to report fraud on my account, I need to speak with a manager, I need emergency cash, I have an appointment, my card is not working',
+  'Landlord / Housing':
+    'housing emergency — phrases: there is no hot water, the heating is broken, there is a water leak, I need an urgent repair, when will this be fixed, this is an emergency',
+  'Immigration Office':
+    'immigration appointment — phrases: I have an appointment at [time], here are my documents, I need to extend my visa/permit, I need a translator, which queue number do I take, what documents are missing',
 }
 
 export async function POST(req: Request) {
@@ -90,47 +99,56 @@ export async function POST(req: Request) {
       rehearsalScenario,
     } = await req.json()
 
+    // ── FIX D: userId null-guard — skip DB ops if missing ────────────────────
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', userId).single()
-    const resolvedLang = targetLanguage || profile?.target_language || 'greek'
-    const langCap = resolvedLang.charAt(0).toUpperCase() + resolvedLang.slice(1)
-    const model = MODEL_MAP[mode] || 'gpt-4o'
 
-    // ══════════════════════════════════════════════════════════════════════
-    // MISSION MODE — JSON response with RPG suggestions
-    // ══════════════════════════════════════════════════════════════════════
+    const { data: profile } = userId
+      ? await supabase.from('profiles').select('*').eq('user_id', userId).single()
+      : { data: null }
+
+    const resolvedLang = targetLanguage || profile?.target_language || 'greek'
+    const langCap      = resolvedLang.charAt(0).toUpperCase() + resolvedLang.slice(1)
+    const model        = MODEL_MAP[mode] || 'gpt-4o'
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MISSION MODE
+    // ══════════════════════════════════════════════════════════════════════════
     if (mode === 'mission') {
-      const day = missionDay || Math.max(1, profile?.mission_day || 1)
+      const day     = missionDay || Math.max(1, profile?.mission_day || 1)
       const mission = getCurrentMission(day)
       const basePrompt = injectLanguage(mission.system_prompt, resolvedLang)
       const fullPrompt = basePrompt + suggestionsAddon(langCap)
 
-      // ── AI speaks first ──────────────────────────────────────────────
+      // AI speaks first
       if (initiate) {
         const initMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
           { role: 'system', content: fullPrompt },
-          { role: 'user', content: `[Scene starts. You are the NPC. The user has just walked in / arrived. Greet them in character in ${langCap}, open the interaction naturally. Set the scene with 1-2 sentences.]` },
+          {
+            role: 'user',
+            content: `[Scene starts. You are the NPC. The user has just walked in / arrived. Greet them in character in ${langCap}, open the interaction naturally. Set the scene with 1-2 sentences.]`,
+          },
         ]
         const res = await openai.chat.completions.create({ model, messages: initMessages, max_tokens: 600, temperature: 0.85 })
         const raw = res.choices[0]?.message?.content || ''
         try {
-          const clean = raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()
-          const parsed = JSON.parse(clean)
+          const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim())
           return NextResponse.json({ reply: parsed.reply, suggestions: parsed.suggestions || [] })
         } catch {
-          return NextResponse.json({ reply: raw, suggestions: [`I need help`, `What do I need?`, `I have my documents`] })
+          return NextResponse.json({ reply: raw, suggestions: ['I need help', 'What do I need?', 'I have my documents'] })
         }
       }
 
-      // ── Normal reply with evaluation ─────────────────────────────────
-      const userMsgCount = messages.filter((m: {role:string}) => m.role === 'user').length
-      const shouldEval = userMsgCount >= 3
-
+      // Normal turn
+      const userMsgCount = messages.filter((m: { role: string }) => m.role === 'user').length
+      const shouldEval   = userMsgCount >= 3
       const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: fullPrompt + (shouldEval ? `\n\nAlso evaluate: has the user completed ALL required steps? SUCCESS CRITERIA: ${mission.success_criteria}` : '') },
+        {
+          role: 'system',
+          content: fullPrompt + (shouldEval ? `\n\nAlso evaluate: has the user completed ALL required steps? SUCCESS CRITERIA: ${mission.success_criteria}` : ''),
+        },
         ...messages,
       ]
 
@@ -139,20 +157,22 @@ export async function POST(req: Request) {
 
       let parsed: { reply: string; suggestions: string[]; mission_passed: boolean; confidence_score: number; feedback: string }
       try {
-        const clean = raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim()
-        parsed = JSON.parse(clean)
+        parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim())
       } catch {
-        parsed = { reply: raw, suggestions: [`Continue`, `Ask a question`, `Provide document`], mission_passed: false, confidence_score: 0, feedback: '' }
+        parsed = { reply: raw, suggestions: ['Continue', 'Ask a question', 'Provide document'], mission_passed: false, confidence_score: 0, feedback: '' }
       }
 
-      if (parsed.mission_passed && parsed.confidence_score >= 60) {
-        // Save session + increment mission day
+      if (parsed.mission_passed && parsed.confidence_score >= 60 && userId) {
         try {
           await supabase.from('sessions').insert({
-            user_id: userId, messages, duration_seconds: 0,
-            language: resolvedLang, level: profile?.current_level || 'A1', xp_earned: 50,
+            user_id:           userId,
+            messages,
+            duration_seconds:  0,
+            language:          resolvedLang,
+            level:             profile?.current_level || 'A1',
+            xp_earned:         50,
             confidence_scores: { mission_score: parsed.confidence_score, mission_day: day, feedback: parsed.feedback },
-            summary: `Mission ${day}: ${mission.title} — passed with ${parsed.confidence_score}/100`,
+            summary:           `Mission ${day}: ${mission.title} — passed with ${parsed.confidence_score}/100`,
           })
           await supabase.from('profiles').update({ mission_day: day + 1 }).eq('user_id', userId)
 
@@ -162,21 +182,29 @@ export async function POST(req: Request) {
             if (p2?.company_id) {
               const { data: co } = await supabase.from('companies').select('webhook_url').eq('id', p2.company_id).single()
               if (co?.webhook_url) {
-                await fetch(co.webhook_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: `✅ *${p2.full_name}* completed *Mission ${day}: ${mission.title}*. Now *${Math.round((day/7)*100)}% integrated*.` }) }).catch(()=>{})
+                await fetch(co.webhook_url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    text: `✅ *${p2.full_name}* completed *Mission ${day}: ${mission.title}*. Now *${Math.round((day / 7) * 100)}% integrated*.`,
+                  }),
+                }).catch(() => {})
               }
             }
-          } catch { /**/ }
-        } catch { /**/ }
+          } catch { /* non-fatal */ }
+        } catch (dbErr) {
+          console.error('Mission DB save error:', dbErr)
+        }
 
         return NextResponse.json({
-          reply: parsed.reply,
+          reply:       parsed.reply,
           suggestions: [],
-          passed: true,
+          passed:      true,
           passedData: {
-            score: parsed.confidence_score,
-            processScore: Math.round(parsed.confidence_score * 0.6),
-            languageScore: Math.round(parsed.confidence_score * 0.4),
-            feedback: parsed.feedback,
+            score:          parsed.confidence_score,
+            processScore:   Math.round(parsed.confidence_score * 0.6),
+            languageScore:  Math.round(parsed.confidence_score * 0.4),
+            feedback:       parsed.feedback,
             day,
             affiliateReward: mission.affiliate_reward || null,
           },
@@ -186,83 +214,201 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: parsed.reply, suggestions: parsed.suggestions || [], passed: false })
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
     // REHEARSAL MODE
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
     if (mode === 'rehearsal') {
       if (!rehearsalScenario) return NextResponse.json({ error: 'No scenario' }, { status: 400 })
+
       const isFirst = messages.length === 0
       const rehearsalMsgs: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: `${rehearsalScenario.systemPrompt}\n\nOnly add REHEARSAL_PASSED when ALL success criteria met: ${rehearsalScenario.successCriteria}` },
+        {
+          role: 'system',
+          content: `${rehearsalScenario.systemPrompt}\n\nOnly add REHEARSAL_PASSED when ALL success criteria met: ${rehearsalScenario.successCriteria}`,
+        },
         ...(isFirst ? [{ role: 'user' as const, content: '[Start the scenario.]' }] : messages),
       ]
-      const res = await openai.chat.completions.create({ model, messages: rehearsalMsgs, max_tokens: 400, temperature: 0.85 })
+
+      const res  = await openai.chat.completions.create({ model, messages: rehearsalMsgs, max_tokens: 400, temperature: 0.85 })
       const text = res.choices[0]?.message?.content || ''
-      const encoder = new TextEncoder()
-      const readable = new ReadableStream({ start(c) { c.enqueue(encoder.encode(text)); c.close() } })
-      return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+
+      // Try JSON format first (new rehearsal with suggested_replies), fall back to plain stream
+      try {
+        const clean  = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        const parsed = JSON.parse(clean)
+        return NextResponse.json({
+          reply:            parsed.ai_message || text,
+          suggestions:      parsed.suggested_replies || [],
+          rehearsal_passed: parsed.rehearsal_passed || text.includes('REHEARSAL_PASSED'),
+        })
+      } catch {
+        const encoder  = new TextEncoder()
+        const readable = new ReadableStream({ start(c) { c.enqueue(encoder.encode(text)); c.close() } })
+        return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+      }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // PANIC MODE
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
+    // PANIC MODE  ← FIX A: location-specific phrases
+    // ══════════════════════════════════════════════════════════════════════════
     if (mode === 'panic') {
       const { location = 'unknown' } = messages[messages.length - 1] || {}
-      const prompt = `Emergency phrase generator. User is at: ${location}. Target language: ${langCap}.\nOutput ONLY 5 critical phrases:\nPHRASE IN ${langCap.toUpperCase()} [phonetic] — English meaning\nNo intro. Pure survival output.`
-      const res = await openai.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }], max_tokens: 300, temperature: 0.2 })
-      const text = res.choices[0]?.message?.content || ''
+
+      // Look up the specific guide for this location, fall back to generic
+      const guide = LOCATION_GUIDES[location] || 'general emergency survival phrases for a foreigner who needs immediate help'
+
+      const prompt = `You are an emergency phrase generator for an expat who cannot speak the local language.
+
+Location: ${location}
+Target language: ${langCap}
+What to focus on: ${guide}
+
+Output EXACTLY 5 phrases. Each phrase must be DIRECTLY USEFUL at "${location}".
+Do NOT use generic phrases like "I am lost" or "I need water" unless the location warrants it.
+Every phrase must solve a real problem someone would face at ${location}.
+
+Format — output ONLY these 5 lines, nothing else:
+1. PHRASE IN ${langCap.toUpperCase()} [phonetic pronunciation] — English meaning
+2. PHRASE IN ${langCap.toUpperCase()} [phonetic pronunciation] — English meaning
+3. PHRASE IN ${langCap.toUpperCase()} [phonetic pronunciation] — English meaning
+4. PHRASE IN ${langCap.toUpperCase()} [phonetic pronunciation] — English meaning
+5. PHRASE IN ${langCap.toUpperCase()} [phonetic pronunciation] — English meaning`
+
+      const res  = await openai.chat.completions.create({
+        model:    'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 400,
+        temperature: 0.2,
+      })
+      const text    = res.choices[0]?.message?.content || ''
       const encoder = new TextEncoder()
       const readable = new ReadableStream({ start(c) { c.enqueue(encoder.encode(text)); c.close() } })
       return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
     }
 
-    // ══════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
     // TUTOR MODE (streaming)
-    // ══════════════════════════════════════════════════════════════════════
-    let sessionCount = 0
-    try { const { count } = await supabase.from('sessions').select('*',{count:'exact',head:true}).eq('user_id',userId); sessionCount = count||0 } catch { /**/ }
+    // ══════════════════════════════════════════════════════════════════════════
+    let sessionCount    = 0
+    let latestSessionId: string | null = null
+
+    if (userId) {
+      try {
+        const { count } = await supabase
+          .from('sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+        sessionCount = count || 0
+      } catch { /* ignore */ }
+
+      // FIX B: grab the latest session id so we can update by id later
+      try {
+        const { data: recent } = await supabase
+          .from('sessions')
+          .select('id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (recent?.length) latestSessionId = recent[0].id
+      } catch { /* ignore */ }
+    }
 
     let memoryContext = ''
-    try {
-      const { data: s } = await supabase.from('sessions').select('confidence_scores,summary').eq('user_id',userId).order('created_at',{ascending:false}).limit(3)
-      if (s?.length) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const struggles = s.flatMap((x:any) => x.confidence_scores?.struggles || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const summaries = s.map((x:any) => x.summary).filter(Boolean)
-        if (struggles.length) memoryContext += `\nRecent struggles: ${[...new Set(struggles)].slice(0,5).join(', ')}.`
-        if (summaries.length) memoryContext += `\nLast session: ${summaries[0]}`
-      }
-    } catch { /**/ }
+    if (userId) {
+      try {
+        const { data: s } = await supabase
+          .from('sessions')
+          .select('confidence_scores,summary')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(3)
 
-    const dm = getDailyMission((profile?.current_level||'A1') as Parameters<typeof getDailyMission>[0], (profile?.dream_goal||'travel') as Parameters<typeof getDailyMission>[1])
-    const sysPrompt = buildLexSystemPrompt({ userName: profile?.full_name?.split(' ')[0]||'there', targetLanguage: resolvedLang, currentLevel: profile?.current_level||'A1', nativeLanguage: profile?.native_language||'English', dreamGoal: profile?.dream_goal||'travel', sessionNumber: sessionCount, safeMode: sessionCount<10, dailyMission: dm }) + memoryContext
+        if (s?.length) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const struggles = s.flatMap((x: any) => x.confidence_scores?.struggles || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const summaries = s.map((x: any) => x.summary).filter(Boolean)
+          if (struggles.length) memoryContext += `\nRecent struggles: ${[...new Set(struggles)].slice(0, 5).join(', ')}.`
+          if (summaries.length) memoryContext += `\nLast session: ${summaries[0]}`
+        }
+      } catch { /* ignore */ }
+    }
 
-    const userMsgCount = messages.filter((m:{role:string})=>m.role==='user').length
-    const shouldScore = userMsgCount >= 4
-    const scoreSuffix = shouldScore ? `\n\nAfter your response add: SCORE:{"fluency":0-10,"accuracy":0-10,"vocabulary":0-10,"struggles":["..."],"summary":"one sentence"}` : ''
+    const dm = getDailyMission(
+      (profile?.current_level || 'A1') as Parameters<typeof getDailyMission>[0],
+      (profile?.dream_goal    || 'travel') as Parameters<typeof getDailyMission>[1]
+    )
 
-    const stream = await openai.chat.completions.create({ model, messages: [{role:'system',content:sysPrompt+scoreSuffix},...messages], stream:true, max_tokens:400, temperature:0.8 })
+    const sysPrompt = buildLexSystemPrompt({
+      userName:       profile?.full_name?.split(' ')[0] || 'there',
+      targetLanguage: resolvedLang,
+      currentLevel:   profile?.current_level  || 'A1',
+      nativeLanguage: profile?.native_language || 'English',
+      dreamGoal:      profile?.dream_goal      || 'travel',
+      sessionNumber:  sessionCount,
+      safeMode:       sessionCount < 10,
+      dailyMission:   dm,
+    }) + memoryContext
+
+    const userMsgCount = messages.filter((m: { role: string }) => m.role === 'user').length
+    const shouldScore  = userMsgCount >= 4
+    const scoreSuffix  = shouldScore
+      ? `\n\nAfter your response add: SCORE:{"fluency":0-10,"accuracy":0-10,"vocabulary":0-10,"struggles":["..."],"summary":"one sentence"}`
+      : ''
+
+    const stream = await openai.chat.completions.create({
+      model,
+      messages:    [{ role: 'system', content: sysPrompt + scoreSuffix }, ...messages],
+      stream:      true,
+      max_tokens:  400,
+      temperature: 0.8,
+    })
+
     const encoder = new TextEncoder()
-    let fullResp = ''
+    let fullResp  = ''
+
     const readable = new ReadableStream({
       async start(controller) {
         for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content||''
-          fullResp += text
+          const text    = chunk.choices[0]?.delta?.content || ''
+          fullResp     += text
           const visible = text.includes('SCORE:') ? '' : text
           if (visible) controller.enqueue(encoder.encode(visible))
         }
-        if (shouldScore && fullResp.includes('SCORE:')) {
+
+        // FIX B: update by id instead of the broken update+order+limit pattern
+        if (shouldScore && fullResp.includes('SCORE:') && userId) {
           try {
             const line = fullResp.split('SCORE:')[1]?.split('\n')[0]
-            const sc = JSON.parse(line)
-            await supabase.from('sessions').update({confidence_scores:sc,summary:sc.summary}).eq('user_id',userId).order('created_at',{ascending:false}).limit(1)
-          } catch { /**/ }
+            const sc   = JSON.parse(line)
+
+            if (latestSessionId) {
+              await supabase
+                .from('sessions')
+                .update({ confidence_scores: sc, summary: sc.summary })
+                .eq('id', latestSessionId)
+            } else {
+              // No prior session — insert a fresh one
+              await supabase.from('sessions').insert({
+                user_id:           userId,
+                messages,
+                duration_seconds:  0,
+                language:          resolvedLang,
+                level:             profile?.current_level || 'A1',
+                xp_earned:         10,
+                confidence_scores: sc,
+                summary:           sc.summary || '',
+              })
+            }
+          } catch (scoreErr) {
+            console.error('Tutor score save error:', scoreErr)
+          }
         }
+
         controller.close()
-      }
+      },
     })
+
     return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 
   } catch (err) {
