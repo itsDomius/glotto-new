@@ -1,60 +1,66 @@
-// v3 - with Stripe redirect
+// ════════════════════════════════════════════════════════════════════════════
+// FILE: src/app/auth/signup/page.tsx  ← PASTE THIS ENTIRE FILE
+//
+// CHANGES:
+//   - Added GDPR consent checkbox (required before account creation)
+//   - Stores gdpr_consent: true in user metadata
+//   - Keeps existing Stripe plan redirect logic untouched
+//   - Consistent styling with new login page
+// ════════════════════════════════════════════════════════════════════════════
 'use client'
-
 import { useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const GREEN = '#4ade80'
-const GREEN_DIM = '#0f2a1a'
+const GREEN        = '#4ade80'
+const GREEN_DIM    = '#0f2a1a'
 const GREEN_BORDER = '#1a3a1f'
 
 function SignUpForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [name,        setName]        = useState('')
+  const [gdprConsent, setGdprConsent] = useState(false)
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
 
-  const plan = searchParams.get('plan')
-  const billing = searchParams.get('billing') || 'monthly'
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const plan         = searchParams.get('plan')
+  const billing      = searchParams.get('billing') || 'monthly'
+
+  const canSubmit = email && password && name && gdprConsent && !loading
 
   const handleSignUp = async () => {
+    if (!gdprConsent) { setError('You must accept the Privacy Policy to continue.'); return }
     setLoading(true)
     setError('')
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } }
+      options: {
+        data: {
+          full_name:    name,
+          gdpr_consent: true,
+          gdpr_date:    new Date().toISOString(),
+        },
+      },
     })
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
+    if (error) { setError(error.message); setLoading(false); return }
 
+    // Stripe redirect if coming from pricing page
     if (plan && data.user) {
       try {
         const res = await fetch('/api/stripe/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            plan,
-            billing,
-            userId: data.user.id,
-            email: data.user.email,
-          }),
+          body: JSON.stringify({ plan, billing, userId: data.user.id, email: data.user.email }),
         })
         const result = await res.json()
-        if (result.url) {
-          window.location.href = result.url
-          return
-        }
+        if (result.url) { window.location.href = result.url; return }
       } catch (err) {
         console.error('Stripe redirect failed:', err)
       }
@@ -64,83 +70,94 @@ function SignUpForm() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#0a0a0a', display: 'flex',
-      flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '24px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <div style={{
-          width: '48px', height: '48px', borderRadius: '14px',
-          background: GREEN_DIM, border: `1px solid ${GREEN_BORDER}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px', fontSize: '22px',
-        }}>✦</div>
-        <h1 style={{ color: '#fff', fontSize: '26px', fontWeight: '800', margin: '0 0 8px' }}>
-          Create your account
-        </h1>
-        <p style={{ color: '#555', fontSize: '15px', margin: 0 }}>
-          {plan
-            ? `You're signing up for the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan`
-            : 'Start speaking your language in 7 days'}
-        </p>
-      </div>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
+        .card { animation: fadeUp 0.35s cubic-bezier(.16,1,.3,1) both; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(74,222,128,0.25); }
+        .btn-primary { transition: all 0.15s; }
+        .input-field:focus { border-color: ${GREEN} !important; outline: none; }
+        .input-field { transition: border-color 0.15s; }
+        .gdpr-check { cursor: pointer; user-select: none; }
+        .gdpr-check:hover .checkbox { border-color: ${GREEN} !important; }
+      `}</style>
 
-      <div style={{ width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div>
-          <label style={{ color: '#555', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>Full name</label>
-          <input type="text" placeholder="Your first name" value={name} onChange={e => setName(e.target.value)}
-            style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-            onFocus={e => e.target.style.borderColor = GREEN} onBlur={e => e.target.style.borderColor = '#1a1a1a'} />
-        </div>
-        <div>
-          <label style={{ color: '#555', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>Email</label>
-          <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)}
-            style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-            onFocus={e => e.target.style.borderColor = GREEN} onBlur={e => e.target.style.borderColor = '#1a1a1a'} />
-        </div>
-        <div>
-          <label style={{ color: '#555', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>Password</label>
-          <input type="password" placeholder="Min. 8 characters" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSignUp()}
-            style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-            onFocus={e => e.target.style.borderColor = GREEN} onBlur={e => e.target.style.borderColor = '#1a1a1a'} />
+      <div className="card" style={{ width: '100%', maxWidth: '420px' }}>
+
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{ width: '52px', height: '52px', background: GREEN_DIM, border: `1px solid ${GREEN_BORDER}`, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', fontSize: '22px', color: GREEN }}>✦</div>
+          <h1 style={{ color: '#fff', fontSize: '26px', fontWeight: '800', margin: '0 0 8px', letterSpacing: '-0.5px' }}>Create your account</h1>
+          <p style={{ color: '#555', fontSize: '15px', margin: 0 }}>
+            {plan ? `Signing up for the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan` : 'Start your relocation journey today'}
+          </p>
         </div>
 
-        {error && (
-          <div style={{ background: '#1a0a0a', border: '1px solid #3a1010', borderRadius: '10px', padding: '12px 16px' }}>
-            <p style={{ color: '#ff6b6b', fontSize: '13px', margin: 0 }}>{error}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Name */}
+          <div>
+            <label style={{ display: 'block', color: '#555', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>Full name</label>
+            <input className="input-field" type="text" placeholder="Your first name" value={name} onChange={e => setName(e.target.value)}
+              style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', fontFamily: 'inherit' }} />
           </div>
-        )}
 
-        <button onClick={handleSignUp} disabled={loading || !email || !password || !name}
-          style={{
-            width: '100%', padding: '16px',
-            background: loading || !email || !password || !name ? '#0e0e0e' : GREEN,
-            color: loading || !email || !password || !name ? '#333' : '#050f06',
-            border: `1px solid ${loading || !email || !password || !name ? '#1a1a1a' : GREEN}`,
-            borderRadius: '12px', fontSize: '16px', fontWeight: '800',
-            cursor: loading || !email || !password || !name ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s', fontFamily: 'inherit', marginTop: '4px',
-            boxShadow: !loading && email && password && name ? '0 4px 24px rgba(74,222,128,0.2)' : 'none',
-          }}>
-          {loading
-            ? (plan ? 'Setting up your account...' : 'Creating account...')
-            : (plan ? 'Create account & pay →' : 'Create account →')}
-        </button>
+          {/* Email */}
+          <div>
+            <label style={{ display: 'block', color: '#555', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>Work email</label>
+            <input className="input-field" type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)}
+              style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', fontFamily: 'inherit' }} />
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '4px 0' }}>
-          <div style={{ flex: 1, height: '1px', background: '#111' }} />
-          <span style={{ color: '#333', fontSize: '12px' }}>or</span>
-          <div style={{ flex: 1, height: '1px', background: '#111' }} />
+          {/* Password */}
+          <div>
+            <label style={{ display: 'block', color: '#555', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>Password</label>
+            <input className="input-field" type="password" placeholder="Min. 8 characters" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && canSubmit && handleSignUp()}
+              style={{ width: '100%', background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: '12px', padding: '14px 18px', color: '#fff', fontSize: '15px', fontFamily: 'inherit' }} />
+          </div>
+
+          {/* GDPR Consent — required */}
+          <div
+            className="gdpr-check"
+            onClick={() => setGdprConsent(v => !v)}
+            style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '14px 16px', background: gdprConsent ? GREEN_DIM : '#0e0e0e', border: `1px solid ${gdprConsent ? GREEN_BORDER : '#1a1a1a'}`, borderRadius: '12px', transition: 'all 0.15s' }}
+          >
+            {/* Custom checkbox */}
+            <div className="checkbox" style={{ width: 20, height: 20, borderRadius: '6px', background: gdprConsent ? GREEN : '#111', border: `2px solid ${gdprConsent ? GREEN : '#333'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+              {gdprConsent && <span style={{ color: '#050f06', fontSize: '12px', fontWeight: '900', lineHeight: 1 }}>✓</span>}
+            </div>
+            <p style={{ color: gdprConsent ? '#ccc' : '#555', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
+              I agree to Glotto&apos;s{' '}
+              <a href="/privacy" onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ color: GREEN, textDecoration: 'underline' }}>Privacy Policy</a>
+              {' '}and consent to processing my personal data (name, email, nationality, language level) for the purpose of relocation support. I can withdraw consent at any time.
+            </p>
+          </div>
+
+          {error && (
+            <div style={{ background: '#1a0808', border: '1px solid #3a1010', borderRadius: '10px', padding: '12px 16px' }}>
+              <p style={{ color: '#f87171', fontSize: '14px', margin: 0 }}>{error}</p>
+            </div>
+          )}
+
+          <button
+            className="btn-primary"
+            onClick={handleSignUp}
+            disabled={!canSubmit}
+            style={{ width: '100%', padding: '16px', background: canSubmit ? GREEN : '#111', color: canSubmit ? '#050f06' : '#333', border: `1px solid ${canSubmit ? GREEN : '#1a1a1a'}`, borderRadius: '12px', fontSize: '16px', fontWeight: '800', cursor: canSubmit ? 'pointer' : 'not-allowed', fontFamily: 'inherit', marginTop: '2px' }}
+          >
+            {loading ? (plan ? 'Setting up...' : 'Creating account...') : (plan ? 'Create account & pay →' : 'Create account →')}
+          </button>
+
+          <p style={{ color: '#444', fontSize: '14px', textAlign: 'center', margin: '4px 0 0' }}>
+            Already have an account?{' '}
+            <Link href="/auth/login" style={{ color: GREEN, fontWeight: '600', textDecoration: 'none' }}>Sign in</Link>
+          </p>
+
+          <p style={{ color: '#222', fontSize: '12px', textAlign: 'center', margin: 0 }}>
+            Your data is stored securely in the EU (Supabase Frankfurt) and never sold to third parties.
+          </p>
         </div>
-
-        <p style={{ color: '#444', fontSize: '14px', textAlign: 'center', margin: 0 }}>
-          Already have an account?{' '}
-          <Link href="/auth/login" style={{ color: GREEN, fontWeight: '600', textDecoration: 'none' }}>Sign in</Link>
-        </p>
-        <p style={{ color: '#222', fontSize: '12px', textAlign: 'center', margin: '4px 0 0' }}>
-          No credit card required · 7-day guarantee · Cancel anytime
-        </p>
       </div>
     </div>
   )
@@ -148,11 +165,7 @@ function SignUpForm() {
 
 export default function SignUp() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#555', fontSize: '15px' }}>Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#555', fontSize: '15px' }}>Loading...</div></div>}>
       <SignUpForm />
     </Suspense>
   )
