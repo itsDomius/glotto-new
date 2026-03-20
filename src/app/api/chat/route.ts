@@ -477,3 +477,4 @@ Format each line as: TRANSLATION [phonetic] — English meaning
     console.error('Chat API error:', err)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
+}
