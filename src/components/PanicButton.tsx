@@ -1,24 +1,35 @@
 // ════════════════════════════════════════════════════════════════════════════
-// FILE: src/components/PanicButton.tsx   ← CREATE THIS FILE (new)
+// FILE: src/components/PanicButton.tsx  ← PASTE THIS ENTIRE FILE
+//
+// FIX: Emergency phrases were returning generic phrases for every location.
+//      Root cause: the API call was passing `location` as a top-level field:
+//        body: JSON.stringify({ ..., location: location?.label })
+//      But the route reads:
+//        const { location } = messages[messages.length - 1] || {}
+//      So `location` was always undefined → falling back to generic phrases.
+//
+//      Fix: pass the location name as messages[0].content, which is exactly
+//      what the route reads. Also pass it as a dedicated `location` property
+//      inside the message object for belt-and-suspenders.
 // ════════════════════════════════════════════════════════════════════════════
 'use client'
 import { useState, useEffect } from 'react'
 
 const LOCATIONS = [
-  { id: 'pharmacy',    label: 'Pharmacy',          icon: '💊', color: '#4ade80' },
-  { id: 'police',      label: 'Police Station',     icon: '🚔', color: '#60a5fa' },
-  { id: 'bank',        label: 'Bank',               icon: '🏦', color: '#fbbf24' },
-  { id: 'hospital',    label: 'Hospital / ER',      icon: '🏥', color: '#f87171' },
-  { id: 'landlord',    label: 'Landlord / Housing', icon: '🏠', color: '#a78bfa' },
-  { id: 'immigration', label: 'Immigration Office', icon: '📋', color: '#fb923c' },
+  { id: 'pharmacy',    label: 'Pharmacy',           icon: '💊', color: '#4ade80' },
+  { id: 'police',      label: 'Police Station',      icon: '🚔', color: '#60a5fa' },
+  { id: 'bank',        label: 'Bank',                icon: '🏦', color: '#fbbf24' },
+  { id: 'hospital',    label: 'Hospital / ER',       icon: '🏥', color: '#f87171' },
+  { id: 'landlord',    label: 'Landlord / Housing',  icon: '🏠', color: '#a78bfa' },
+  { id: 'immigration', label: 'Immigration Office',  icon: '📋', color: '#fb923c' },
 ]
 
 export default function PanicButton() {
-  const [open, setOpen] = useState(false)
+  const [open,     setOpen]     = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
-  const [script, setScript] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [script,   setScript]   = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [copied,   setCopied]   = useState(false)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
@@ -26,9 +37,7 @@ export default function PanicButton() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const handleClose = () => {
-    setOpen(false); setSelected(null); setScript(''); setCopied(false)
-  }
+  const handleClose = () => { setOpen(false); setSelected(null); setScript(''); setCopied(false) }
 
   const generateScript = async (locationId: string) => {
     setSelected(locationId); setScript(''); setLoading(true)
@@ -36,16 +45,21 @@ export default function PanicButton() {
 
     try {
       const res = await fetch('/api/chat', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: `Emergency: I need survival phrases for ${location?.label}` }],
-          userId: 'guest',
-          mode: 'panic',
-          location: location?.label,
+          // FIX: pass location label as the message content
+          // The route reads: messages[messages.length - 1]?.content
+          // Previously this was passing location as a top-level field
+          // which the route never read → always returned generic phrases
+          messages: [{ role: 'user', content: location?.label, location: location?.label }],
+          userId:         'guest',
+          mode:           'panic',
+          targetLanguage: 'greek',
         }),
       })
-      const reader = res.body!.getReader()
+
+      const reader  = res.body!.getReader()
       const decoder = new TextDecoder()
       let full = ''
       while (true) {
@@ -81,11 +95,9 @@ export default function PanicButton() {
           position: 'fixed', bottom: '28px', right: '28px', zIndex: 500,
           width: '64px', height: '64px', borderRadius: '50%',
           background: 'radial-gradient(circle at 35% 35%, #ff5555, #cc0000)',
-          border: '3px solid rgba(255,60,60,0.6)',
-          color: '#fff', fontSize: '26px', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          animation: 'panic-pulse 2.5s ease infinite',
-          transition: 'transform 0.15s',
+          border: '3px solid rgba(255,60,60,0.6)', color: '#fff', fontSize: '26px',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'panic-pulse 2.5s ease infinite', transition: 'transform 0.15s',
         }}
         onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
         onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
@@ -121,9 +133,8 @@ export default function PanicButton() {
           }}
         >
           <div style={{
-            background: '#080808', border: '1px solid #280000',
-            borderRadius: '20px', width: '100%', maxWidth: '520px',
-            maxHeight: '90vh', overflowY: 'auto',
+            background: '#080808', border: '1px solid #280000', borderRadius: '20px',
+            width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto',
             animation: 'modal-in 0.3s cubic-bezier(0.16,1,0.3,1) both',
           }}>
 
@@ -140,21 +151,19 @@ export default function PanicButton() {
               </div>
               <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#444', fontSize: '22px', cursor: 'pointer', paddingLeft: '8px' }}>✕</button>
             </div>
+
             <p style={{ color: '#444', fontSize: '13px', padding: '8px 24px 20px' }}>
-              Select your location — we'll generate the exact phrases to say right now.
+              Select your location — we&apos;ll generate the exact phrases to say right now.
             </p>
 
             {/* Location grid */}
             {!script && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '0 24px 24px' }}>
                 {LOCATIONS.map(loc => (
-                  <button
-                    key={loc.id}
-                    onClick={() => generateScript(loc.id)}
-                    disabled={loading}
+                  <button key={loc.id} onClick={() => generateScript(loc.id)} disabled={loading}
                     style={{
-                      background: selected === loc.id ? `${loc.color}15` : '#0e0e0e',
-                      border: `2px solid ${selected === loc.id ? loc.color : '#1a1a1a'}`,
+                      background:  selected === loc.id ? `${loc.color}15` : '#0e0e0e',
+                      border:      `2px solid ${selected === loc.id ? loc.color : '#1a1a1a'}`,
                       borderRadius: '14px', padding: '18px 16px',
                       cursor: loading ? 'not-allowed' : 'pointer',
                       textAlign: 'left', transition: 'all 0.15s',
@@ -193,27 +202,25 @@ export default function PanicButton() {
                   {script}
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    onClick={copyToClipboard}
-                    style={{
-                      flex: 1, padding: '13px',
-                      background: copied ? '#0f2a1a' : '#cc2200',
-                      color: copied ? '#4ade80' : '#fff',
-                      border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: '700',
-                      cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
-                    }}
-                  >
+                  <button onClick={copyToClipboard} style={{
+                    flex: 1, padding: '13px',
+                    background: copied ? '#0f2a1a' : '#cc2200',
+                    color:      copied ? '#4ade80' : '#fff',
+                    border: 'none', borderRadius: '12px', fontSize: '14px',
+                    fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
+                  }}>
                     {copied ? '✓ Copied to clipboard!' : '📋 Copy to show clerk'}
                   </button>
-                  <button
-                    onClick={() => { setScript(''); setSelected(null) }}
-                    style={{ padding: '13px 16px', background: '#111', border: '1px solid #1a1a1a', color: '#555', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
+                  <button onClick={() => { setScript(''); setSelected(null) }} style={{
+                    padding: '13px 16px', background: '#111', border: '1px solid #1a1a1a',
+                    color: '#555', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
                     ← Back
                   </button>
                 </div>
               </div>
             )}
+
           </div>
         </div>
       )}
